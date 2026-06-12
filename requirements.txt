@@ -1,0 +1,10 @@
+openai-whisper
+torch
+transformers
+sentence-transformers
+scikit-learn
+pandas
+numpy
+joblib
+pydub
+soundfile

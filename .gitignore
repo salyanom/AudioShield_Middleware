@@ -1,0 +1,37 @@
+**pycache**/
+*.pyc
+*.pyo
+
+# Virtual environments
+
+venv/
+.env
+
+# VS Code
+
+.vscode/
+
+# Logs
+
+logs/
+*.log
+logs.json
+logs.jsonl
+
+# Evaluation outputs
+
+evaluation_results.csv
+
+# Hugging Face cache
+
+.cache/
+.huggingface/
+
+# Large trained model file (GitHub >100MB limit)
+
+models/risk_classifier/model.safetensors
+
+# OS files
+
+.DS_Store
+Thumbs.db
