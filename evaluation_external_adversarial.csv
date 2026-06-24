@@ -1,0 +1,5 @@
+dataset,attack,original,adversarial,original_transcript,adversarial_transcript,word_error_rate,semantic_similarity,snr_db,max_absolute_delta,transferred_to_whisper
+Common Voice,white-box,000621_original.wav,000621_adv-medium2medium.wav,It's called the Principle of Favorability.,It's called the Principle of Favorability.,0.0,1.0,28.755,0.001709,False
+Common Voice,white-box,000639_original.wav,000639_adv-medium2medium.wav,It was the pure language of the world.,It was the pure language of the world.,0.0,1.0,28.988,0.003357,False
+Speech Commands,black-box targeted yes-to-right,yes_original.wav,yes2right-black.wav,Yes.,Yes.,0.0,1.0,14.686,0.234375,False
+Speech Commands,white-box targeted yes-to-right,yes_original.wav,yes2right-white.wav,Yes.,Yes.,0.0,1.0,29.473,0.004181,False

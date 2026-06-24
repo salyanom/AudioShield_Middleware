@@ -1,275 +1,185 @@
 # AudioShield
 
-## Defending Voice-AI Pipelines: A Context-Aware Middleware for Real-Time Detection of Adversarial Audio Prompt Injection
+AudioShield is a model-agnostic security middleware for voice-AI systems. It
+transcribes audio, blocks unsafe transcripts before model generation, checks
+generated responses for policy and contextual consistency, mitigates unsafe
+outputs, and writes an append-only JSONL audit trail.
 
-AudioShield is a security middleware designed to protect Voice-AI systems against adversarial audio prompt injection attacks. The middleware analyzes audio inputs, verifies response relevance, detects unsafe model outputs, and decides whether the generated response should be allowed or blocked.
-
----
-
-## Features
-
-### Speech-to-Text Transcription
-
-* OpenAI Whisper
-* Converts audio input into text transcripts
-
-### Context Verification
-
-* Sentence Transformers
-* Semantic similarity analysis between transcript and generated response
-* Detects context deviation and prompt injection attempts
-
-### Policy Checking
-
-* Fine-tuned DistilBERT classifier
-* Classifies responses as Safe or Unsafe
-* Produces risk probabilities for decision making
-
-### Decision Engine
-
-* Combines:
-
-  * Context similarity score
-  * Policy classification result
-* Produces:
-
-  * ALLOW
-  * BLOCK
-
-### Logging
-
-* Stores middleware decisions and metadata
-* JSONL-based logging format
-
-### Adversarial Audio Evaluation
-
-* Speed perturbation attacks
-* Volume perturbation attacks
-* Robustness evaluation against modified audio samples
-
----
-
-## Project Structure
+## Connected pipeline
 
 ```text
-CCNCSP1/
-│
-├── data/
-│   ├── benign/
-│   ├── adversarial/
-│   └── risk_dataset.csv
-│
-├── features/
-│
-├── models/
-│   └── risk_classifier/
-│
-├── src/
-│   ├── audio_processor.py
-│   ├── context_verifier.py
-│   ├── policy_checker.py
-│   ├── middleware.py
-│   ├── logger.py
-│   ├── evaluate.py
-│   ├── generate_adversarial.py
-│   ├── train_risk_model.py
-│   └── utils.py
-│
-├── README.md
-├── requirements.txt
-└── .gitignore
+Audio or transcript
+        |
+        v
+Whisper STT (audio only)
+        |
+        v
+Input policy check -------- unsafe --------> BLOCK (LLM is not called)
+        |
+       safe
+        v
+LLM provider (Ollama or OpenAI-compatible API)
+        |
+        v
+Output policy + context verification
+        |
+        +-------- safe and relevant --------> ALLOW raw response
+        |
+        +-------- unsafe or drifted --------> MITIGATE with safe fallback
+
+Every terminal decision -------------------> JSONL audit log
 ```
 
----
+The response is never sent to the user before the output checks finish. The
+middleware therefore adds inspection latency, but it does not expose unchecked
+model output. Clearly unsafe transcripts are cheaper: they are stopped before
+the LLM call.
 
-## Architecture
+## Install
 
-```text
-Audio Input
-      │
-      ▼
-Whisper STT
-      │
-      ▼
-Transcript
-      │
-      ▼
-LLM Response
-      │
-      ▼
-Middleware
- ├── Context Verification
- ├── Policy Checking
- ├── Decision Engine
- └── Logger
-      │
-      ▼
-ALLOW / BLOCK
-```
+Python 3.11 or 3.12 and FFmpeg are recommended.
 
----
-
-## Installation
-
-### Clone Repository
-
-```bash
-git clone <repository-url>
-cd CCNCSP1
-```
-
-### Install Dependencies
-
-```bash
+```powershell
 pip install -r requirements.txt
-```
-
-### Install FFmpeg
-
-Whisper requires FFmpeg.
-
-Windows:
-
-```powershell
-winget install Gyan.FFmpeg
-```
-
-Verify:
-
-```powershell
 ffmpeg -version
 ```
 
----
+The fine-tuned classifier must exist at
+`models/risk_classifier/model.safetensors`. To recreate it:
 
-## Train Policy Classifier
-
-The DistilBERT classifier must be trained before running the middleware.
-
-```bash
+```powershell
 python src/train_risk_model.py
 ```
 
-This generates:
+## Choose an LLM
 
-```text
-models/risk_classifier/model.safetensors
+The default is `llama3.1:8b` through local Ollama. Phi-3 was only a lightweight
+prototype choice; it is not coupled to the middleware.
+
+```powershell
+ollama pull llama3.1:8b
+$env:AUDIOSHIELD_LLM_PROVIDER = "ollama"
+$env:AUDIOSHIELD_LLM_MODEL = "llama3.1:8b"
+$env:AUDIOSHIELD_LLM_BASE_URL = "http://localhost:11434"
 ```
 
-Note:
-The trained model file is excluded from Git because it exceeds GitHub's file size limit.
+Use any hosted or self-hosted API implementing `/v1/chat/completions`:
 
----
-
-## Running the Middleware
-
-```bash
-python src/middleware.py
+```powershell
+$env:AUDIOSHIELD_LLM_PROVIDER = "openai-compatible"
+$env:AUDIOSHIELD_LLM_MODEL = "your-model-name"
+$env:AUDIOSHIELD_LLM_BASE_URL = "https://your-gateway.example"
+$env:AUDIOSHIELD_LLM_API_KEY = "your-key"
 ```
 
-Example input:
+Model size is an operational choice. Use a model that fits the available GPU,
+latency target, and deployment budget; AudioShield does not depend on one model.
 
-```text
-Audio File Path:
-data/benign/test.mp3
+## Run everything from one entry point
+
+Audio:
+
+```powershell
+python src/middleware.py --audio data/benign/test.mp3
 ```
 
-Output:
-
-```text
 Transcript:
-...
 
-Generated Response:
-...
-
-========== REPORT ==========
-
-Similarity Score  : 0.81
-Unsafe Probability: 0.23
-Policy Score      : 0
-Decision          : ALLOW
-
-============================
+```powershell
+python src/middleware.py --text "Explain cloud computing briefly."
 ```
 
----
+Inspect a response created by an existing real-world model gateway without
+having AudioShield call a second model:
 
-## Generating Adversarial Audio
-
-```bash
-python src/generate_adversarial.py
+```powershell
+python src/middleware.py --text "User request" --response "Existing model output" --json
 ```
 
-Current attacks:
+## UI
 
-* Speed perturbation
-* Volume perturbation
-
----
-
-## Evaluating Robustness
-
-```bash
-python src/evaluate.py
+```powershell
+streamlit run src/ui.py
 ```
 
-Produces:
+The UI accepts audio or transcripts, configures the model gateway, shows the
+decision and scores, and provides an audit-log view/download.
+
+## Real-world HTTP gateway
+
+Run AudioShield as a service between an STT system and a model/application:
+
+```powershell
+uvicorn src.api:app --host 127.0.0.1 --port 8000
+```
+
+Let AudioShield call the configured LLM:
+
+```powershell
+Invoke-RestMethod -Method Post http://127.0.0.1:8000/v1/secure `
+  -ContentType "application/json" `
+  -Body '{"transcript":"Explain cloud computing briefly."}'
+```
+
+Or inspect a response generated by an existing model service:
+
+```json
+{
+  "transcript": "User request from STT",
+  "supplied_response": "Output from the existing model"
+}
+```
+
+The calling application returns only the `response` field to its user. The
+`raw_response` field is for a protected operator/audit channel and should not be
+included in a user-facing response.
+
+## Decisions and mitigation
+
+- `ALLOW`: return the checked model response.
+- `BLOCK`: reject a dangerous transcript before generation.
+- `MITIGATE`: retain the raw output only in the operator audit record and return
+  a safe fallback to the user.
+
+Thresholds and paths are configurable:
 
 ```text
-evaluation_results.csv
+AUDIOSHIELD_INPUT_RISK_THRESHOLD   default 0.80
+AUDIOSHIELD_OUTPUT_RISK_THRESHOLD  default 0.50
+AUDIOSHIELD_CONTEXT_THRESHOLD      default 0.25
+AUDIOSHIELD_LOG_PATH               default logs/security_events.jsonl
+AUDIOSHIELD_WHISPER_MODEL          default base
+AUDIOSHIELD_EMBEDDING_MODEL        default all-MiniLM-L6-v2
 ```
 
-containing similarity scores between benign and adversarial transcripts.
+The current classifier dataset is small, so these thresholds are prototype
+defaults and must be calibrated against a representative validation set before
+production use.
 
----
+## Audit logging
 
-## Technologies Used
+Each record includes a UTC timestamp, request ID, input source, transcript,
+decision, reason, final and raw responses, risk scores, context similarity,
+provider/model identity, and per-stage latency. New records are written to:
 
-* Python
-* OpenAI Whisper
-* Sentence Transformers
-* DistilBERT
-* Hugging Face Transformers
-* PyTorch
-* Scikit-learn
-* Pandas
-* NumPy
-* Pydub
+```text
+logs/security_events.jsonl
+```
 
----
+Raw responses may contain sensitive data. Production deployments should apply
+access control, retention limits, redaction, encryption, and log rotation.
 
-## Current Status
+## Verify
 
-### Implemented
+```powershell
+python -m compileall -q src tests
+python -m unittest discover -s tests -v
+```
 
-* Whisper transcription
-* Context verification
-* DistilBERT policy classifier
-* Decision engine
-* Logging system
-* Adversarial audio generation
-* Evaluation pipeline
+## Research scope
 
-### Planned
-
-* Noise attacks
-* Pitch-shift attacks
-* Echo/Reverb attacks
-* Response mitigation layer
-* Expanded attack dataset
-
----
-
-## Authors
-
-* Om Jagdish Salyan
-* Siddhartha Aakash Rao
-
-### Guide
-
-Dr. Vinodha K.
-
-Summer Internship 2026
-Centre for Cognitive Neural Computing Systems (CCNCS)
-PES University
+`README (2).md` describes the Carlini-Wagner DeepSpeech adversarial attack
+repository. Its TensorFlow 1.x/DeepSpeech stack is best treated as an optional
+offline attack generator. Generated adversarial WAV files can be fed into
+AudioShield's evaluation dataset; AudioShield itself should remain independent
+of that obsolete runtime.

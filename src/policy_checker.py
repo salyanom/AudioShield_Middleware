@@ -44,7 +44,7 @@ def _load():
     _model.eval()
 
 
-def check_policy(response: str):
+def check_policy(response: str, threshold: float | None = None):
     """
     Parameters
     ----------
@@ -84,12 +84,13 @@ def check_policy(response: str):
     safe_prob   = float(probs[0])
     unsafe_prob = float(probs[1])
 
-    prediction = 1 if unsafe_prob >= CONFIG["unsafe_threshold"] else 0
+    effective_threshold = CONFIG["unsafe_threshold"] if threshold is None else threshold
+    prediction = 1 if unsafe_prob >= effective_threshold else 0
 
     details = {
         "safe_prob":   round(safe_prob,   4),
         "unsafe_prob": round(unsafe_prob, 4),
-        "threshold":   CONFIG["unsafe_threshold"],
+        "threshold":   effective_threshold,
         "model_dir":   CONFIG["model_dir"],
     }
 

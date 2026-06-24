@@ -8,3 +8,7 @@ numpy
 joblib
 pydub
 soundfile
+librosa
+streamlit
+fastapi
+uvicorn
