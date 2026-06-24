@@ -1,37 +1,65 @@
-**pycache**/
-*.pyc
+# Python
+__pycache__/
+*.py[cod]
 *.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
 
 # Virtual environments
-
 venv/
-.env
+env/
+.venv/
+.env/
 
-# VS Code
+# Jupyter
+.ipynb_checkpoints/
 
-.vscode/
-
-# Logs
-
-logs/
-*.log
-logs.json
-logs.jsonl
-
-# Evaluation outputs
-
-evaluation_results.csv
-
-# Hugging Face cache
-
-.cache/
-.huggingface/
-
-# Large trained model file (GitHub >100MB limit)
-
-models/risk_classifier/model.safetensors
-
-# OS files
-
+# OS
 .DS_Store
 Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# Logs (keep structure, ignore content)
+logs/*.jsonl
+*.log
+
+# Model weights (too large for git - download via train_risk_model.py)
+models/risk_classifier/model.safetensors
+models/risk_classifier/vocab.txt
+models/risk_classifier/tokenizer.json
+models/risk_classifier/tokenizer_config.json
+models/risk_classifier/special_tokens_map.json
+models/risk_classifier/config.json
+
+# Keep training metadata
+!models/risk_classifier/training_meta.json
+
+# Large audio files - external adversarial dataset
+data/external/zhenghuatan/*.wav
+
+# Temp/debug scripts (keep in repo for reproducibility, but note they are diagnostic)
+# debug_639.py
+# diagnose.py
+
+# Archives
+*.zip
+*.tar.gz
+*.rar
+
+# Streamlit
+.streamlit/
+
+# Environment files
+.env
+.env.local

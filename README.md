@@ -1,185 +1,260 @@
 # AudioShield
 
-AudioShield is a model-agnostic security middleware for voice-AI systems. It
-transcribes audio, blocks unsafe transcripts before model generation, checks
-generated responses for policy and contextual consistency, mitigates unsafe
-outputs, and writes an append-only JSONL audit trail.
+**A Model-Agnostic Security Middleware for Voice-AI Systems**
 
-## Connected pipeline
+AudioShield is a lightweight security middleware that protects Voice-AI pipelines against adversarial audio prompt injection attacks and unsafe LLM outputs. It operates between the Speech-to-Text (STT) layer and the user-facing response, performing multi-stage verification before any content is delivered.
 
-```text
-Audio or transcript
-        |
-        v
-Whisper STT (audio only)
-        |
-        v
-Input policy check -------- unsafe --------> BLOCK (LLM is not called)
-        |
-       safe
-        v
-LLM provider (Ollama or OpenAI-compatible API)
-        |
-        v
-Output policy + context verification
-        |
-        +-------- safe and relevant --------> ALLOW raw response
-        |
-        +-------- unsafe or drifted --------> MITIGATE with safe fallback
+---
 
-Every terminal decision -------------------> JSONL audit log
+## Architecture
+
+```
+Audio Input
+     ↓
+Whisper STT
+     ↓
+Transcript
+     ↓
+┌─────────────────────────┐
+│  Input Policy Check     │  ← DistilBERT safety classifier
+│  (blocks before LLM)   │
+└─────────────────────────┘
+     ↓ (if safe)
+LLM Response Generation
+(Llama 3.1 / Phi-3 / Gemini / Stub)
+     ↓
+┌─────────────────────────┐
+│  Context Verification   │  ← SentenceTransformer cosine similarity
+│  (semantic consistency) │
+└─────────────────────────┘
+     ↓
+┌─────────────────────────┐
+│  Output Policy Check    │  ← DistilBERT safety classifier
+│  (response safety)      │
+└─────────────────────────┘
+     ↓
+Decision Engine
+     ↓
+ALLOW / MITIGATE / BLOCK
+     ↓
+JSONL Audit Log
 ```
 
-The response is never sent to the user before the output checks finish. The
-middleware therefore adds inspection latency, but it does not expose unchecked
-model output. Clearly unsafe transcripts are cheaper: they are stopped before
-the LLM call.
+---
 
-## Install
+## Key Results
 
-Python 3.11 or 3.12 and FFmpeg are recommended.
+| Metric | Value |
+|---|---|
+| Precision | **1.000** |
+| Recall | **0.444** |
+| F1 Score | **0.615** |
+| ROC-AUC | **0.906** |
+| False Positive Rate | **0.000** |
 
-```powershell
+Evaluated on 20 benign + 27 adversarial samples (20 prompt injection attacks + 7 signal perturbations).
+
+---
+
+## Project Structure
+
+```
+CCNCSP1/
+├── data/
+│   ├── benign/                  # 20 TTS-generated benign WAV files
+│   ├── adversarial/             # 20 prompt injection + 7 signal perturbation WAVs
+│   ├── external/
+│   │   ├── benign/              # Original WAVs from external adversarial dataset
+│   │   └── adversarial/        # adv-medium2medium + yes2right variants
+│   └── risk_dataset.csv        # 253-row safe/unsafe training dataset
+├── features/
+│   ├── benign_features.csv
+│   └── dataset.csv
+├── logs/
+│   └── security_events.jsonl   # JSONL audit log (git-ignored)
+├── models/
+│   └── risk_classifier/        # Fine-tuned DistilBERT weights
+├── results/
+│   ├── evaluation_results.csv
+│   ├── similarity_by_attack.png
+│   ├── decision_distribution.png
+│   ├── unsafe_prob_distribution.png
+│   ├── roc_curve.png
+│   ├── confusion_matrix.png
+│   └── latency_boxplot.png
+├── src/
+│   ├── api.py                  # FastAPI gateway
+│   ├── audio_processor.py      # Whisper STT
+│   ├── config.py               # Environment-variable-driven settings
+│   ├── context_verifier.py     # SentenceTransformer cosine similarity
+│   ├── evaluate.py             # Full pipeline evaluation + graphs
+│   ├── evaluate_external_adversarial.py
+│   ├── generate_adversarial.py # 6-attack audio perturbation generator
+│   ├── generate_dataset.py     # TTS dataset generator (pyttsx3)
+│   ├── llm_engine.py           # Multi-backend LLM (Ollama/Gemini/OpenAI/stub)
+│   ├── logger.py               # JSONL audit logger
+│   ├── middleware.py           # Main pipeline orchestrator
+│   ├── policy_checker.py       # DistilBERT inference
+│   ├── train_risk_model.py     # DistilBERT fine-tuning pipeline
+│   └── ui.py                   # Streamlit operator dashboard
+├── tests/
+│   └── test_middleware.py
+└── requirements.txt
+```
+
+---
+
+## Setup
+
+### Requirements
+
+- Python 3.10+
+- CUDA GPU recommended for Whisper + DistilBERT inference
+- [FFmpeg](https://ffmpeg.org/) on PATH (for audio processing)
+
+### Install
+
+```bash
 pip install -r requirements.txt
-ffmpeg -version
 ```
 
-The fine-tuned classifier must exist at
-`models/risk_classifier/model.safetensors`. To recreate it:
+### Train the safety classifier
 
-```powershell
+```bash
 python src/train_risk_model.py
 ```
 
-## Choose an LLM
+Trains DistilBERT on `data/risk_dataset.csv` (253 examples, balanced).
+Saves model to `models/risk_classifier/`.
 
-The default is `llama3.1:8b` through local Ollama. Phi-3 was only a lightweight
-prototype choice; it is not coupled to the middleware.
+Training results: val_accuracy = 100% at epoch 2 (from 97.56% at epoch 1).
 
-```powershell
+---
+
+## Usage
+
+### Run the middleware on a single audio file
+
+```bash
+python src/middleware.py --audio data/benign/benign_00.wav
+```
+
+### Run full evaluation
+
+```bash
+python src/evaluate.py \
+  --benign data/benign \
+  --adversarial data/adversarial \
+  --out results/
+```
+
+Generates 6 graphs and prints precision/recall/F1/ROC-AUC/FPR/FNR.
+
+### Generate adversarial audio samples
+
+```bash
+python src/generate_adversarial.py --input data/benign/benign_00.wav --fmt wav
+```
+
+Attacks: `speed`, `volume`, `noise`, `pitch`, `echo`, `reverb`.
+
+### Generate TTS evaluation dataset
+
+```bash
+pip install pyttsx3
+python src/generate_dataset.py --benign 20 --adversarial 20
+```
+
+### Start the API gateway
+
+```bash
+uvicorn src.api:app --port 8000
+```
+
+### Start the Streamlit UI
+
+```bash
+python -m streamlit run src/ui.py
+```
+
+---
+
+## Configuration
+
+All settings are environment-variable driven via `src/config.py`. No hardcoded values.
+
+| Variable | Default | Description |
+|---|---|---|
+| `AUDIOSHIELD_LLM_PROVIDER` | `ollama` | `ollama`, `openai`, `gemini`, `stub` |
+| `AUDIOSHIELD_LLM_MODEL` | `llama3.1:8b` | Model name |
+| `AUDIOSHIELD_LLM_BASE_URL` | `http://localhost:11434` | API base URL |
+| `AUDIOSHIELD_LLM_API_KEY` | — | API key (Gemini/OpenAI) |
+| `AUDIOSHIELD_INPUT_RISK_THRESHOLD` | `0.80` | Block transcript above this unsafe_prob |
+| `AUDIOSHIELD_OUTPUT_RISK_THRESHOLD` | `0.50` | Mitigate/block response above this |
+| `AUDIOSHIELD_CONTEXT_THRESHOLD` | `0.25` | Block if similarity below this |
+| `AUDIOSHIELD_LOG_PATH` | `logs/security_events.jsonl` | Audit log path |
+
+### Using with Ollama (local Llama 3.1)
+
+```bash
 ollama pull llama3.1:8b
-$env:AUDIOSHIELD_LLM_PROVIDER = "ollama"
-$env:AUDIOSHIELD_LLM_MODEL = "llama3.1:8b"
-$env:AUDIOSHIELD_LLM_BASE_URL = "http://localhost:11434"
+python src/middleware.py --audio data/benign/benign_00.wav
 ```
 
-Use any hosted or self-hosted API implementing `/v1/chat/completions`:
+### Using with Gemini API
 
-```powershell
-$env:AUDIOSHIELD_LLM_PROVIDER = "openai-compatible"
-$env:AUDIOSHIELD_LLM_MODEL = "your-model-name"
-$env:AUDIOSHIELD_LLM_BASE_URL = "https://your-gateway.example"
-$env:AUDIOSHIELD_LLM_API_KEY = "your-key"
+```bash
+export AUDIOSHIELD_LLM_PROVIDER=gemini
+export AUDIOSHIELD_LLM_API_KEY=your_key_here
+python src/middleware.py --audio data/benign/benign_00.wav
 ```
 
-Model size is an operational choice. Use a model that fits the available GPU,
-latency target, and deployment budget; AudioShield does not depend on one model.
+### Offline testing (stub backend)
 
-## Run everything from one entry point
-
-Audio:
-
-```powershell
-python src/middleware.py --audio data/benign/test.mp3
+```bash
+export LLM_BACKEND=stub
+python src/evaluate.py --benign data/benign --adversarial data/adversarial --out results/
 ```
 
-Transcript:
+---
 
-```powershell
-python src/middleware.py --text "Explain cloud computing briefly."
-```
+## Attack Types
 
-Inspect a response created by an existing real-world model gateway without
-having AudioShield call a second model:
+| Attack | Method | Detected by |
+|---|---|---|
+| Prompt injection | Spoken override instructions | Policy checker (unsafe_prob) |
+| Noise injection | AWGN at configurable SNR | Context verifier (similarity) |
+| Echo | Single-tap delayed reflection | Context verifier |
+| Reverb | Synthetic room impulse response | Context verifier |
+| Pitch shift | Resampling-based pitch change | Context verifier |
+| Speed change | Time-stretch without pitch shift | Context verifier |
+| Volume increase | Gain amplification | Context verifier |
 
-```powershell
-python src/middleware.py --text "User request" --response "Existing model output" --json
-```
+---
 
-## UI
+## Carlini & Wagner Investigation
 
-```powershell
-streamlit run src/ui.py
-```
+The C&W gradient-based attack (targeted at DeepSpeech 0.9.3) was investigated as a potential evaluation source. The original Docker image (`nvidia/cuda:10.0-cudnn7-devel-ubuntu18.04`) has been removed from Docker Hub, making the build impossible without manual environment reconstruction.
 
-The UI accepts audio or transcripts, configures the model gateway, shows the
-decision and scores, and provides an audit-log view/download.
+An external adversarial dataset (`data/external/`) was used instead to evaluate attack transferability. **Key finding:** C&W-style attacks targeting DeepSpeech do not transfer to Whisper — WER = 0.0 and cosine similarity ≈ 1.0 across all original/adversarial pairs, confirming STT model specificity of gradient-based attacks.
 
-## Real-world HTTP gateway
+---
 
-Run AudioShield as a service between an STT system and a model/application:
+## Technology Stack
 
-```powershell
-uvicorn src.api:app --host 127.0.0.1 --port 8000
-```
+| Component | Technology |
+|---|---|
+| Speech-to-Text | OpenAI Whisper |
+| Safety Classifier | DistilBERT (fine-tuned) |
+| Context Verification | SentenceTransformer (all-MiniLM-L6-v2) |
+| LLM Backend | Llama 3.1 / Phi-3 / Gemini / OpenAI-compatible |
+| API Gateway | FastAPI |
+| UI | Streamlit |
+| Audio Processing | Librosa, SciPy, pydub |
+| Logging | JSONL |
 
-Let AudioShield call the configured LLM:
+---
 
-```powershell
-Invoke-RestMethod -Method Post http://127.0.0.1:8000/v1/secure `
-  -ContentType "application/json" `
-  -Body '{"transcript":"Explain cloud computing briefly."}'
-```
+## Repository
 
-Or inspect a response generated by an existing model service:
-
-```json
-{
-  "transcript": "User request from STT",
-  "supplied_response": "Output from the existing model"
-}
-```
-
-The calling application returns only the `response` field to its user. The
-`raw_response` field is for a protected operator/audit channel and should not be
-included in a user-facing response.
-
-## Decisions and mitigation
-
-- `ALLOW`: return the checked model response.
-- `BLOCK`: reject a dangerous transcript before generation.
-- `MITIGATE`: retain the raw output only in the operator audit record and return
-  a safe fallback to the user.
-
-Thresholds and paths are configurable:
-
-```text
-AUDIOSHIELD_INPUT_RISK_THRESHOLD   default 0.80
-AUDIOSHIELD_OUTPUT_RISK_THRESHOLD  default 0.50
-AUDIOSHIELD_CONTEXT_THRESHOLD      default 0.25
-AUDIOSHIELD_LOG_PATH               default logs/security_events.jsonl
-AUDIOSHIELD_WHISPER_MODEL          default base
-AUDIOSHIELD_EMBEDDING_MODEL        default all-MiniLM-L6-v2
-```
-
-The current classifier dataset is small, so these thresholds are prototype
-defaults and must be calibrated against a representative validation set before
-production use.
-
-## Audit logging
-
-Each record includes a UTC timestamp, request ID, input source, transcript,
-decision, reason, final and raw responses, risk scores, context similarity,
-provider/model identity, and per-stage latency. New records are written to:
-
-```text
-logs/security_events.jsonl
-```
-
-Raw responses may contain sensitive data. Production deployments should apply
-access control, retention limits, redaction, encryption, and log rotation.
-
-## Verify
-
-```powershell
-python -m compileall -q src tests
-python -m unittest discover -s tests -v
-```
-
-## Research scope
-
-`README (2).md` describes the Carlini-Wagner DeepSpeech adversarial attack
-repository. Its TensorFlow 1.x/DeepSpeech stack is best treated as an optional
-offline attack generator. Generated adversarial WAV files can be fed into
-AudioShield's evaluation dataset; AudioShield itself should remain independent
-of that obsolete runtime.
+[github.com/salyanom/AudioShield_Middleware](https://github.com/salyanom/AudioShield_Middleware)
