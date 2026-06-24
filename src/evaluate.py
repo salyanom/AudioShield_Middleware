@@ -113,17 +113,22 @@ def _to_row(r, label: int, attack_type: str) -> dict:
     )
     similarity = r.context_similarity if r.context_similarity is not None else 0.0
 
+    audio_sim  = getattr(r, "audio_similarity", None)
+    risk_score = getattr(r, "risk_score", None)
+
     return {
-        "file":        os.path.basename(r.source.get("path", "") if isinstance(r.source, dict) else ""),
-        "label":       label,
-        "attack_type": attack_type,
-        "transcript":  r.transcript,
-        "similarity":  float(similarity),
-        "unsafe_prob": float(unsafe_prob),
-        "decision":    r.decision,
-        "blocked_at":  r.reason,
-        "detected":    1 if r.decision in CONFIG["detected_decisions"] else 0,
-        "latency_ms":  total_latency,
+        "file":            os.path.basename(r.source.get("path", "") if isinstance(r.source, dict) else ""),
+        "label":           label,
+        "attack_type":     attack_type,
+        "transcript":      r.transcript,
+        "similarity":      float(similarity),
+        "audio_similarity":float(audio_sim) if audio_sim is not None else None,
+        "risk_score":      float(risk_score) if risk_score is not None else None,
+        "unsafe_prob":     float(unsafe_prob),
+        "decision":        r.decision,
+        "blocked_at":      r.reason,
+        "detected":        1 if r.decision in CONFIG["detected_decisions"] else 0,
+        "latency_ms":      total_latency,
     }
 
 
