@@ -60,8 +60,10 @@ def _files(directory: str) -> list:
 
 
 def _attack_type(path: str) -> str:
-    stem   = os.path.splitext(os.path.basename(path))[0]
-    parts  = stem.split("_")
+    stem = os.path.splitext(os.path.basename(path))[0]
+    if stem.startswith("adversarial_inject"):
+        return "prompt_injection"
+    parts = stem.split("_")
     return parts[-1] if len(parts) > 1 else "unknown"
 
 
