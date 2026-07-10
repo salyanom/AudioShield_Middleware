@@ -22,10 +22,11 @@ embedding itself, for use in the hybrid decision engine.
 
 import numpy as np
 
+from config import settings
+
 # ── Config ────────────────────────────────────────────────────────────────────
 CONFIG = {
     "minilm_model": "all-MiniLM-L6-v2",
-    "use_clap":     True,    # set False to disable CLAP (faster, transcript only)
 }
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -71,7 +72,7 @@ def verify_context_full(
     transcript  : str   STT transcript of the audio.
     response    : str   LLM-generated response.
     audio_path  : str | None
-        Path to original audio file.  If provided and CONFIG["use_clap"]
+        Path to original audio file.  If provided and settings.use_clap
         is True, CLAP audio-text similarity is computed.
 
     Returns
@@ -88,14 +89,17 @@ def verify_context_full(
     audio_emb = None
     clap_ok   = False
 
-    if audio_path and CONFIG["use_clap"]:
+    if audio_path and settings.use_clap:
         try:
-            from audio_embedder import audio_text_similarity, get_audio_embedding
-            audio_sim = audio_text_similarity(audio_path, response)
+            from audio_embedder import get_audio_embedding, get_text_embedding
             audio_emb = get_audio_embedding(audio_path)
+            text_emb  = get_text_embedding(response)
+            audio_sim = float(np.dot(audio_emb, text_emb))
             clap_ok   = True
-        except Exception as e:
-            print(f"[context_verifier] CLAP unavailable: {e} — using transcript only")
+        except Exception:
+            import traceback
+            traceback.print_exc()
+            print("[context_verifier] CLAP unavailable (see traceback above) — using transcript only")
 
     return {
         "transcript_similarity": transcript_sim,

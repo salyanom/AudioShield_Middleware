@@ -42,10 +42,10 @@ _device    = None
 
 def _load():
     global _model, _processor, _device
-    import torch
     from transformers import ClapModel, ClapProcessor
+    from utils import get_device
 
-    _device    = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    _device    = get_device()
     _processor = ClapProcessor.from_pretrained(CONFIG["model_name"])
     _model     = ClapModel.from_pretrained(CONFIG["model_name"]).to(_device)
     _model.eval()
@@ -63,6 +63,22 @@ def _load_audio(path: str) -> np.ndarray:
         duration=CONFIG["max_seconds"],
     )
     return audio.astype(np.float32)
+
+
+def _pooled(output):
+    """
+    Unwrap the return value of get_audio_features()/get_text_features().
+
+    transformers >= ~4.5x returns a bare (1, 512) tensor. transformers 5.x
+    wraps it in a BaseModelOutputWithPooling, where `.last_hidden_state`
+    is the unpooled per-patch/per-token feature map (wrong shape for a
+    similarity score) and `.pooler_output` is the actual (1, 512)
+    projected embedding we want. Handle both so this survives future
+    transformers upgrades without silently computing garbage.
+    """
+    if hasattr(output, "pooler_output") and output.pooler_output is not None:
+        return output.pooler_output
+    return output
 
 
 def get_audio_embedding(audio_path: str) -> np.ndarray:
@@ -84,17 +100,17 @@ def get_audio_embedding(audio_path: str) -> np.ndarray:
 
     audio = _load_audio(audio_path)
 
-    inputs = _processor(
-        audios=audio,
-        return_tensors="pt",
-        sampling_rate=CONFIG["sample_rate"],
-    )
+    try:
+        inputs = _processor(audio=audio, return_tensors="pt", sampling_rate=CONFIG["sample_rate"])
+    except (TypeError, ValueError):
+        # Older transformers releases only accept the `audios` kwarg name.
+        inputs = _processor(audios=audio, return_tensors="pt", sampling_rate=CONFIG["sample_rate"])
     inputs = {k: v.to(_device) for k, v in inputs.items()}
 
     with torch.no_grad():
-        emb = _model.get_audio_features(**inputs)   # (1, 512)
+        output = _model.get_audio_features(**inputs)
 
-    emb = emb[0].cpu().numpy().astype(np.float32)
+    emb = _pooled(output)[0].cpu().numpy().astype(np.float32)
     emb /= np.linalg.norm(emb) + 1e-8              # L2 normalise
     return emb
 
@@ -126,9 +142,9 @@ def get_text_embedding(text: str) -> np.ndarray:
     inputs = {k: v.to(_device) for k, v in inputs.items()}
 
     with torch.no_grad():
-        emb = _model.get_text_features(**inputs)    # (1, 512)
+        output = _model.get_text_features(**inputs)
 
-    emb = emb[0].cpu().numpy().astype(np.float32)
+    emb = _pooled(output)[0].cpu().numpy().astype(np.float32)
     emb /= np.linalg.norm(emb) + 1e-8
     return emb
 

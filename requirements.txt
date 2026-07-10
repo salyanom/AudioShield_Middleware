@@ -1,6 +1,6 @@
 openai-whisper
 torch
-transformers
+transformers>=4.30  # CLAP support; audio_embedder.py handles both pre- and post-5.x return types
 sentence-transformers
 scikit-learn
 pandas
@@ -12,3 +12,4 @@ librosa
 streamlit
 fastapi
 uvicorn
+pyttsx3  # offline TTS for generate_dataset.py; pulls in pyobjc automatically on macOS

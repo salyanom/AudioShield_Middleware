@@ -22,6 +22,8 @@ from transformers import (
 )
 from torch.optim import AdamW
 
+from utils import get_device
+
 # ── Config ────────────────────────────────────────────────────────────────────
 CONFIG = {
     "dataset_path":  "data/risk_dataset.csv",
@@ -89,7 +91,7 @@ def build_loaders(texts, labels, tokenizer, cfg):
 
 
 def train(cfg):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = get_device()
     print(f"Device: {device}")
 
     texts, labels = load_dataset(cfg)

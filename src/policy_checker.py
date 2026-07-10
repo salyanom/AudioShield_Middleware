@@ -14,6 +14,8 @@ from pathlib import Path
 import torch
 from transformers import DistilBertTokenizerFast, DistilBertForSequenceClassification
 
+from utils import get_device
+
 # ── Config ────────────────────────────────────────────────────────────────────
 CONFIG = {
     "model_dir":         "models/risk_classifier",
@@ -38,7 +40,7 @@ def _load():
             "Run train_risk_model.py first."
         )
 
-    _device    = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    _device    = get_device()
     _tokenizer = DistilBertTokenizerFast.from_pretrained(model_path)
     _model     = DistilBertForSequenceClassification.from_pretrained(model_path).to(_device)
     _model.eval()
