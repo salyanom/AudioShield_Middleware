@@ -85,6 +85,30 @@ def _compute_risk_score(
     return round(float(score), 4)
 
 
+def sanitize_response(
+    raw_response: str,
+    transcript: str,
+    provider: LLMProvider,
+    cfg: Settings,
+) -> str:
+    """
+    Rewrite the response safely using the LLM provider to sanitize it,
+    removing commands, credentials, or malicious overrides.
+    """
+    prompt = (
+        f"{cfg.mitigation_prompt}\n\n"
+        f"Original User Query: {transcript}\n"
+        f"Unsafe AI Response to Sanitize: {raw_response}\n\n"
+        f"Sanitized AI Response:"
+    )
+    try:
+        sanitized = provider.generate(prompt)
+        return sanitized.strip()
+    except Exception as e:
+        print(f"[middleware] Smart mitigation failed to run: {e}. Falling back to default message.")
+        return cfg.mitigation_message
+
+
 def process_transcript(
     transcript:        str,
     *,
@@ -183,7 +207,29 @@ def process_transcript(
         decision = "ALLOW"
         reason   = (f"Hybrid risk score {risk_score:.3f} within safe bounds.")
 
-    final_response = raw_response if decision == "ALLOW" else cfg.mitigation_message
+    if decision == "ALLOW":
+        final_response = raw_response
+    elif decision == "MITIGATE" and cfg.smart_mitigation and cfg.llm_provider != "stub":
+        print(f"[middleware] Running smart mitigation for decision {decision}")
+        active_provider = active_provider or build_provider(cfg)
+        (sanitized_res, mitigate_latency) = _timed(
+            sanitize_response, raw_response, transcript, active_provider, cfg
+        )
+        latency["smart_mitigation"] = mitigate_latency
+        
+        # Verify sanitized response safety
+        (san_pred, san_details), safety_latency = _timed(
+            policy_check, sanitized_res, cfg.output_risk_threshold
+        )
+        latency["mitigated_safety_check"] = safety_latency
+        
+        if san_pred:
+            print("[middleware] Smart mitigated response failed safety check. Falling back to default mitigation message.")
+            final_response = cfg.mitigation_message
+        else:
+            final_response = sanitized_res
+    else:
+        final_response = cfg.mitigation_message
 
     result = PipelineResult(
         request_id=request_id,

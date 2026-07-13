@@ -422,5 +422,111 @@ class TestEdgeCases(unittest.TestCase):
         self.assertIn("type", result.source)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# 9. Smart Mitigation Features
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestSmartMitigationFeatures(unittest.TestCase):
+
+    @patch("middleware.log_security_event", side_effect=_noop_log)
+    def test_smart_mitigation_calls_provider_and_rewrites(self, _):
+        class FakeMitigationProvider:
+            name = "fake-mitigator"
+            model = "fake-model"
+            def generate(self, prompt):
+                return "This is a clean, sanitized response rewritten safely."
+
+        def _context_medium(t, r, a=None):
+            return {
+                "transcript_similarity": 0.65,
+                "audio_similarity":      0.60,
+                "audio_embedding":       None,
+                "clap_available":        True,
+            }
+
+        # Borderline output to trigger MITIGATE decision, and medium context
+        cfg_smart = Settings(
+            llm_provider="ollama", # non-stub to allow smart mitigation
+            smart_mitigation=True,
+            weight_policy=0.40,
+            weight_context=0.35,
+            weight_audio=0.25,
+            block_threshold=0.60,
+            mitigate_threshold=0.40,
+            output_risk_threshold=0.50,
+            mitigation_message="Fallback message"
+        )
+        call_count = {"n": 0}
+        def policy_check_custom(text, threshold=0.5):
+            call_count["n"] += 1
+            if call_count["n"] == 2:
+                return _policy_borderline(text, threshold) # output check -> MITIGATE
+            return _policy_safe(text, threshold) # input check & sanitized safety check -> safe
+
+        result = process_transcript(
+            "Tell me about networking.",
+            supplied_response="Unsafe raw output to be mitigated.",
+            cfg=cfg_smart,
+            policy_check=policy_check_custom,
+            context_check=_context_medium,
+            provider=FakeMitigationProvider(),
+        )
+        self.assertEqual(result.decision, "MITIGATE")
+        self.assertEqual(result.response, "This is a clean, sanitized response rewritten safely.")
+        self.assertEqual(result.raw_response, "Unsafe raw output to be mitigated.")
+        self.assertIn("smart_mitigation", result.latency_ms)
+
+    @patch("middleware.log_security_event", side_effect=_noop_log)
+    def test_smart_mitigation_fallback_if_sanitized_fails_safety(self, _):
+        class FakeMitigationProvider:
+            name = "fake-mitigator"
+            model = "fake-model"
+            def generate(self, prompt):
+                return "Failed sanitized output that is still UNSAFE."
+
+        def _context_medium(t, r, a=None):
+            return {
+                "transcript_similarity": 0.65,
+                "audio_similarity":      0.60,
+                "audio_embedding":       None,
+                "clap_available":        True,
+            }
+
+        call_count = {"n": 0}
+        def policy_check_custom(text, threshold=0.5):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                return _policy_safe(text, threshold) # input check
+            elif call_count["n"] == 2:
+                return _policy_borderline(text, threshold) # output check -> MITIGATE
+            else:
+                # Sanitized response safety check: trigger unsafe
+                return _policy_unsafe(text, threshold)
+
+        cfg_smart = Settings(
+            llm_provider="ollama",
+            smart_mitigation=True,
+            weight_policy=0.40,
+            weight_context=0.35,
+            weight_audio=0.25,
+            block_threshold=0.60,
+            mitigate_threshold=0.40,
+            output_risk_threshold=0.50,
+            mitigation_message="Hard fallback message"
+        )
+
+        result = process_transcript(
+            "Tell me about networking.",
+            supplied_response="Unsafe output.",
+            cfg=cfg_smart,
+            policy_check=policy_check_custom,
+            context_check=_context_medium,
+            provider=FakeMitigationProvider(),
+        )
+        # Should fallback because safety check fails on rewritten text
+        self.assertEqual(result.decision, "MITIGATE")
+        self.assertEqual(result.response, "Hard fallback message")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
