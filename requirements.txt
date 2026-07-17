@@ -8,7 +8,6 @@ scikit-learn
 # Data / Numeric
 pandas
 numpy
-joblib
 
 # Audio Processing
 pydub
