@@ -528,5 +528,152 @@ class TestSmartMitigationFeatures(unittest.TestCase):
         self.assertEqual(result.response, "Hard fallback message")
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# 10. Sanitizer Engine Tests
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestSanitizerEngine(unittest.TestCase):
+
+    def test_redact_secrets(self):
+        from sanitizer import redact_secrets
+        text = "My database is at 192.168.1.1 and API key is api_key=ab12cd34ef56gh78"
+        sanitized = redact_secrets(text)
+        self.assertIn("[REDACTED_IP]", sanitized)
+        self.assertNotIn("192.168.1.1", sanitized)
+        self.assertIn("[REDACTED_SECRET]", sanitized)
+        self.assertNotIn("ab12cd34ef56gh78", sanitized)
+
+    def test_remove_urls(self):
+        from sanitizer import remove_urls
+        text = "Visit https://evil.com/payload.sh or http://www.phishing.com for details."
+        sanitized = remove_urls(text)
+        self.assertIn("[REDACTED_URL]", sanitized)
+        self.assertNotIn("phishing.com", sanitized)
+
+    def test_remove_code_blocks(self):
+        from sanitizer import remove_code_blocks
+        text = "Here is some code:\n```python\nprint('hello')\n```\nHope it helps."
+        sanitized = remove_code_blocks(text)
+        self.assertIn("[REDACTED_CODE_BLOCK]", sanitized)
+        self.assertNotIn("print('hello')", sanitized)
+
+    def test_remove_shell_commands(self):
+        from sanitizer import remove_shell_commands
+        text = "Run this: sudo rm -rf /var\n$ chmod +x test.sh\nThis line is clean."
+        sanitized = remove_shell_commands(text)
+        self.assertIn("[REDACTED_COMMAND]", sanitized)
+        self.assertNotIn("sudo rm -rf", sanitized)
+        self.assertIn("This line is clean.", sanitized)
+
+    def test_redact_emails(self):
+        from sanitizer import redact_pii
+        text = "Contact admin@company.com or user.name+tag@example.co.uk for help."
+        sanitized = redact_pii(text)
+        self.assertIn("[REDACTED_EMAIL]", sanitized)
+        self.assertNotIn("admin@company.com", sanitized)
+
+    def test_redact_phone_numbers(self):
+        from sanitizer import redact_pii
+        text = "Call us at (555) 123-4567 or +1-800-555-0199."
+        sanitized = redact_pii(text)
+        self.assertIn("[REDACTED_PHONE]", sanitized)
+        self.assertNotIn("123-4567", sanitized)
+
+    def test_redact_ssn(self):
+        from sanitizer import redact_pii
+        text = "SSN is 123-45-6789 for tax purposes."
+        sanitized = redact_pii(text)
+        self.assertIn("[REDACTED_SSN]", sanitized)
+        self.assertNotIn("123-45-6789", sanitized)
+
+    def test_redact_aws_keys(self):
+        from sanitizer import redact_secrets
+        text = "Use AWS key AKIAIOSFODNN7EXAMPLE to authenticate."
+        sanitized = redact_secrets(text)
+        self.assertIn("[REDACTED_AWS_KEY]", sanitized)
+        self.assertNotIn("AKIAIOSFODNN7EXAMPLE", sanitized)
+
+    def test_redact_jwt_tokens(self):
+        from sanitizer import redact_secrets
+        text = "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"
+        sanitized = redact_secrets(text)
+        self.assertIn("[REDACTED_JWT]", sanitized)
+        self.assertNotIn("eyJhbGci", sanitized)
+
+    def test_redact_file_paths(self):
+        from sanitizer import redact_file_paths
+        text = "Read the file at /etc/passwd or C:\\Users\\admin\\secrets.txt for info."
+        sanitized = redact_file_paths(text)
+        self.assertEqual(sanitized.count("[REDACTED_PATH]"), 2)
+        self.assertNotIn("/etc/passwd", sanitized)
+
+    def test_sanitize_all_combined(self):
+        from sanitizer import sanitize_all
+        text = (
+            "Email admin@corp.com, call 555-123-4567.\n"
+            "Visit https://evil.com/payload\n"
+            "```bash\nrm -rf /\n```\n"
+            "AWS key: AKIAIOSFODNN7EXAMPLE\n"
+            "Server: 10.0.0.1"
+        )
+        sanitized = sanitize_all(text)
+        self.assertNotIn("admin@corp.com", sanitized)
+        self.assertNotIn("evil.com", sanitized)
+        self.assertNotIn("AKIAIOSFODNN7EXAMPLE", sanitized)
+        self.assertNotIn("10.0.0.1", sanitized)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 11. Local Sanitization Fallback in Middleware
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestLocalSanitizationFallback(unittest.TestCase):
+
+    @patch("middleware.log_security_event", side_effect=_noop_log)
+    def test_local_fallback_success_when_safe(self, _):
+        """When smart mitgation is off, local sanitizer should return clean response if safe."""
+        cfg_local = Settings(
+            llm_provider="stub", # triggers local sanitization fallback
+            smart_mitigation=False,
+            weight_policy=0.40,
+            weight_context=0.35,
+            weight_audio=0.25,
+            block_threshold=0.60,
+            mitigate_threshold=0.40,
+            output_risk_threshold=0.50,
+            mitigation_message="Fallback message"
+        )
+        def _context_medium(t, r, a=None):
+            return {
+                "transcript_similarity": 0.65,
+                "audio_similarity":      0.60,
+                "audio_embedding":       None,
+                "clap_available":        True,
+            }
+            
+        call_count = {"n": 0}
+        def policy_check_custom(text, threshold=0.5):
+            call_count["n"] += 1
+            if call_count["n"] == 2:
+                # Output check: unsafe to trigger MITIGATE
+                return _policy_borderline(text, threshold)
+            # Input check & sanitized safety check -> safe
+            return _policy_safe(text, threshold)
+
+        raw = "Here is an IP address: 10.0.0.1. It is unsafe."
+        result = process_transcript(
+            "Give me connection info.",
+            supplied_response=raw,
+            cfg=cfg_local,
+            policy_check=policy_check_custom,
+            context_check=_context_medium,
+        )
+        self.assertEqual(result.decision, "MITIGATE")
+        # Local sanitizer should successfully replace IP and pass safety check
+        self.assertEqual(result.response, "Here is an IP address: [REDACTED_IP]. It is unsafe.")
+        self.assertEqual(result.raw_response, raw)
+        self.assertIn("local_sanitization", result.latency_ms)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

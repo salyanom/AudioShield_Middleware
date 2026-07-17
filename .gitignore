@@ -63,3 +63,13 @@ data/external/zhenghuatan/*.wav
 # Environment files
 .env
 .env.local
+
+# Agent/AI tool directories
+.agents/
+.gemini/
+
+# Large generated files
+results/threshold_optimization.csv
+
+# Downloaded external datasets (too large for git)
+data/external_benign/

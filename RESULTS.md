@@ -219,6 +219,7 @@ Under the stub LLM backend, the context verifier is the primary detection mechan
 DistilBERT unsafe_prob remains in 0.20–0.50 range for stub responses (neutral text).
 With a real LLM (Ollama/Gemini), adversarial transcripts would elicit genuinely harmful responses, activating the policy checker as a second detection layer.
 Current results represent a conservative lower bound on detection performance.
+Smart mitigation requires a live LLM backend; evaluation results reflect stub-backend behavior where MITIGATE produces the default fallback message.
 
 ### Finding 6: Latency
 
@@ -228,6 +229,41 @@ Average pipeline latency (stub backend):
 - Blocked samples (input policy): ~320 ms (LLM and context steps skipped)
 
 The input policy check provides significant latency savings for clearly unsafe transcripts.
+
+---
+
+## Threshold Optimization
+
+### Baseline: Hybrid Decision Engine with CLAP (Manually Chosen Thresholds)
+
+Using the hybrid risk scoring formula with manually chosen weights and thresholds:
+`w_p=0.40, w_c=0.35, w_a=0.25, mitigate=0.40, block=0.60`
+
+| Metric | Value |
+|---|---|
+| Precision | 1.000 |
+| Recall | 0.889 |
+| F1-Score | 0.941 |
+| ROC-AUC | 0.963 |
+| FPR | 0.000 |
+
+### Grid Search Optimization (on Same Evaluation Dataset)
+
+Exhaustive grid search over 414,000 parameter combinations found the following optimal configuration:
+`w_p=0.65, w_c=0.10, w_a=0.25, mitigate=0.42, block=0.43`
+
+Threshold optimization on the evaluation dataset improved F1 from 0.94 to 0.98.
+
+| Metric | Before (Manual) | After (Optimized) | Change |
+|---|---|---|---|
+| Precision | 1.000 | 1.000 | = |
+| Recall | 0.889 | 0.963 | +0.074 |
+| F1-Score | 0.941 | 0.981 | +0.040 |
+| Accuracy | 0.936 | 0.979 | +0.043 |
+| FPR | 0.000 | 0.000 | = |
+| FNR | 0.111 | 0.037 | -0.074 |
+
+**Important caveat:** Optimized thresholds were selected on the same dataset used for evaluation. These results represent optimized-on-training performance. Validation on an independent held-out dataset is needed before claiming generalized F1 = 0.98.
 
 ---
 
@@ -243,3 +279,6 @@ All saved to `results/` and `results/external/`:
 | ROC curve | roc_curve.png | ROC-AUC for DistilBERT as detector |
 | Confusion matrix | confusion_matrix.png | TP/TN/FP/FN heatmap |
 | Latency boxplot | latency_boxplot.png | Pipeline latency distribution per attack type |
+| Threshold ROC comparison | threshold_comparison_roc.png | Overlaid ROC: original vs optimized thresholds |
+| Threshold F1 comparison | threshold_comparison_f1.png | Bar chart: Precision/Recall/F1/FPR old vs optimized |
+

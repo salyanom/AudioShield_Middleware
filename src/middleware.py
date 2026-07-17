@@ -209,25 +209,49 @@ def process_transcript(
 
     if decision == "ALLOW":
         final_response = raw_response
-    elif decision == "MITIGATE" and cfg.smart_mitigation and cfg.llm_provider != "stub":
-        print(f"[middleware] Running smart mitigation for decision {decision}")
-        active_provider = active_provider or build_provider(cfg)
-        (sanitized_res, mitigate_latency) = _timed(
-            sanitize_response, raw_response, transcript, active_provider, cfg
-        )
-        latency["smart_mitigation"] = mitigate_latency
-        
-        # Verify sanitized response safety
-        (san_pred, san_details), safety_latency = _timed(
-            policy_check, sanitized_res, cfg.output_risk_threshold
-        )
-        latency["mitigated_safety_check"] = safety_latency
-        
-        if san_pred:
-            print("[middleware] Smart mitigated response failed safety check. Falling back to default mitigation message.")
-            final_response = cfg.mitigation_message
+    elif decision == "MITIGATE":
+        from sanitizer import sanitize_all
+        if cfg.smart_mitigation and cfg.llm_provider != "stub":
+            print(f"[middleware] Running smart mitigation for decision {decision}")
+            active_provider = active_provider or build_provider(cfg)
+            # Pre-sanitize raw response to strip code blocks, commands, urls, or secrets
+            pre_sanitized = sanitize_all(raw_response)
+            (sanitized_res, mitigate_latency) = _timed(
+                sanitize_response, pre_sanitized, transcript, active_provider, cfg
+            )
+            # Post-sanitize the rewritten output for double insurance
+            sanitized_res = sanitize_all(sanitized_res)
+            latency["smart_mitigation"] = mitigate_latency
+            
+            # Verify sanitized response safety
+            (san_pred, san_details), safety_latency = _timed(
+                policy_check, sanitized_res, cfg.output_risk_threshold
+            )
+            latency["mitigated_safety_check"] = safety_latency
+            
+            if san_pred:
+                print("[middleware] Smart mitigated response failed safety check. Falling back to default mitigation message.")
+                final_response = cfg.mitigation_message
+            else:
+                final_response = sanitized_res
         else:
-            final_response = sanitized_res
+            # Local rule-based sanitization fallback
+            local_san, local_latency = _timed(sanitize_all, raw_response)
+            latency["local_sanitization"] = local_latency
+            
+            # Verify local sanitized response safety
+            (san_pred, san_details), safety_latency = _timed(
+                policy_check, local_san, cfg.output_risk_threshold
+            )
+            latency["mitigated_safety_check"] = safety_latency
+            
+            # If local sanitization removed the threat and is safe, use it
+            if not san_pred and local_san.strip() and local_san != raw_response:
+                print("[middleware] Smart mitigation disabled/unavailable. Returning locally sanitized response.")
+                final_response = local_san
+            else:
+                print("[middleware] Smart mitigation unavailable and local sanitization unsafe. Returning default mitigation message.")
+                final_response = cfg.mitigation_message
     else:
         final_response = cfg.mitigation_message
 

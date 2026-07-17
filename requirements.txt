@@ -1,14 +1,34 @@
+# Core ML
 openai-whisper
 torch
 transformers
 sentence-transformers
 scikit-learn
+
+# Data / Numeric
 pandas
 numpy
 joblib
+
+# Audio Processing
 pydub
 soundfile
 librosa
+scipy
+
+# CLAP Audio Embeddings
+laion-clap
+
+# Web / API
 streamlit
 fastapi
 uvicorn
+
+# Visualization
+matplotlib
+
+# HTTP requests (LLM backends)
+requests
+
+# Optional: faster-whisper for optimized STT latency
+# faster-whisper

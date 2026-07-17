@@ -38,6 +38,11 @@ def _get_model():
     raise ValueError(f"Unknown whisper engine config: {engine}")
 
 
+def get_whisper_model(engine_name: str | None = None):
+    model, engine = _get_model()
+    return model, engine
+
+
 def transcribe_audio(audio_path):
     model, engine = _get_model()
     if engine == "faster-whisper":

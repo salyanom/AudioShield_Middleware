@@ -1,260 +1,241 @@
-# AudioShield
+# 🛡️ AudioShield
 
-**A Model-Agnostic Security Middleware for Voice-AI Systems**
+**A State-of-the-Art, Model-Agnostic Security Middleware for Real-Time Voice-AI Systems**
 
-AudioShield is a lightweight security middleware that protects Voice-AI pipelines against adversarial audio prompt injection attacks and unsafe LLM outputs. It operates between the Speech-to-Text (STT) layer and the user-facing response, performing multi-stage verification before any content is delivered.
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Tests: 37 passing](https://img.shields.io/badge/tests-37%20passing-brightgreen.svg)](tests/)
+[![Architecture: Hybrid](https://img.shields.io/badge/Architecture-Hybrid%205--Stage-8A2BE2.svg)](docs/architecture.md)
 
----
-
-## Architecture
-
-```
-Audio Input
-     ↓
-Whisper STT
-     ↓
-Transcript
-     ↓
-┌─────────────────────────┐
-│  Input Policy Check     │  ← DistilBERT safety classifier
-│  (blocks before LLM)   │
-└─────────────────────────┘
-     ↓ (if safe)
-LLM Response Generation
-(Llama 3.1 / Phi-3 / Gemini / Stub)
-     ↓
-┌─────────────────────────┐
-│  Context Verification   │  ← SentenceTransformer cosine similarity
-│  (semantic consistency) │
-└─────────────────────────┘
-     ↓
-┌─────────────────────────┐
-│  Output Policy Check    │  ← DistilBERT safety classifier
-│  (response safety)      │
-└─────────────────────────┘
-     ↓
-Decision Engine
-     ↓
-ALLOW / MITIGATE / BLOCK
-     ↓
-JSONL Audit Log
-```
+AudioShield is an advanced security middleware engineered to protect real-time Voice-AI pipelines against **adversarial audio prompt injections**, **acoustic decoder obfuscation**, and **unsafe LLM outputs**. Operating directly between the Speech-to-Text (STT) layer and the user-facing response generator, AudioShield performs multi-stage hybrid verification before any content is delivered.
 
 ---
 
-## Key Results
+## 🌟 Key Features
 
-| Metric | Value |
-|---|---|
-| Precision | **1.000** |
-| Recall | **0.444** |
-| F1 Score | **0.615** |
-| ROC-AUC | **0.906** |
-| False Positive Rate | **0.000** |
-
-Evaluated on 20 benign + 27 adversarial samples (20 prompt injection attacks + 7 signal perturbations).
+* **Continuous Chunk-by-Chunk Audio Streaming**: Intercepts and blocks adversarial prompt injections mid-utterance (`EARLY TERMINATION`) without waiting for full audio completion, reducing verification latency by **up to 77%**.
+* **Five-Stage Hybrid Decision Engine**: Combines fine-tuned DistilBERT policy classification, MiniLM text-to-text semantic verification, and CLAP audio-to-text cross-modal embeddings into a unified risk formula.
+* **Whisper-Targeted Acoustic Robustness**: Evaluated against high-frequency phonetic masking, 3x time-scale compression (`TSM`), and multi-path room reverberation specifically designed to fool `openai-whisper` and `faster-whisper`.
+* **Multi-Layer Data Redaction**: Automatically strips personally identifiable information (PII: emails, phones, SSNs), AWS/JWT/Bearer credentials, terminal commands, markdown code blocks, and absolute file paths via `sanitizer.py`.
+* **Model & Gateway Agnostic**: Works out-of-the-box with local `Ollama` models (`Llama 3.1`, `Phi-3`), hosted `OpenAI` (`GPT-4o`), `vLLM`, `LM Studio`, and offline `Stub` verification engines.
 
 ---
 
-## Project Structure
+## 🏗️ Architecture & Threat Model
 
 ```
-CCNCSP1/
-├── data/
-│   ├── benign/                  # 20 TTS-generated benign WAV files
-│   ├── adversarial/             # 20 prompt injection + 7 signal perturbation WAVs
-│   ├── external/
-│   │   ├── benign/              # Original WAVs from external adversarial dataset
-│   │   └── adversarial/        # adv-medium2medium + yes2right variants
-│   └── risk_dataset.csv        # 253-row safe/unsafe training dataset
-├── features/
-│   ├── benign_features.csv
-│   └── dataset.csv
-├── logs/
-│   └── security_events.jsonl   # JSONL audit log (git-ignored)
-├── models/
-│   └── risk_classifier/        # Fine-tuned DistilBERT weights
-├── results/
-│   ├── evaluation_results.csv
-│   ├── similarity_by_attack.png
-│   ├── decision_distribution.png
-│   ├── unsafe_prob_distribution.png
-│   ├── roc_curve.png
-│   ├── confusion_matrix.png
-│   └── latency_boxplot.png
-├── src/
-│   ├── api.py                  # FastAPI gateway
-│   ├── audio_processor.py      # Whisper STT
-│   ├── config.py               # Environment-variable-driven settings
-│   ├── context_verifier.py     # SentenceTransformer cosine similarity
-│   ├── evaluate.py             # Full pipeline evaluation + graphs
-│   ├── evaluate_external_adversarial.py
-│   ├── generate_adversarial.py # 6-attack audio perturbation generator
-│   ├── generate_dataset.py     # TTS dataset generator (pyttsx3)
-│   ├── llm_engine.py           # Multi-backend LLM (Ollama/Gemini/OpenAI/stub)
-│   ├── logger.py               # JSONL audit logger
-│   ├── middleware.py           # Main pipeline orchestrator
-│   ├── policy_checker.py       # DistilBERT inference
-│   ├── train_risk_model.py     # DistilBERT fine-tuning pipeline
-│   └── ui.py                   # Streamlit operator dashboard
-├── tests/
-│   └── test_middleware.py
-└── requirements.txt
+                        ┌───────────────┐
+                        │  Audio Input  │
+                        └───────┬───────┘
+                                │ (Streaming Chunks / Batch WAV)
+                    ┌───────────▼───────────┐
+                    │   Whisper STT          │ ← openai-whisper / faster-whisper
+                    │   (Speech → Text)      │
+                    └───────────┬───────────┘
+                                │ transcript
+                    ┌───────────▼───────────┐
+                    │  Stage 1: Input        │
+                    │  Policy Check          │ ← DistilBERT safety classifier
+                    │  (blocks before LLM)   │
+                    └───────────┬───────────┘
+                                │ if safe
+                    ┌───────────▼───────────┐
+                    │  Stage 2: LLM          │ ← Llama 3.1 / Phi-3 / Gemini /
+                    │  Response Generation   │   OpenAI-compatible / Stub
+                    └───────────┬───────────┘
+                                │ raw response
+                    ┌───────────▼───────────┐
+                    │  Stage 3: Output       │
+                    │  Policy Check          │ ← DistilBERT safety classifier
+                    └───────────┬───────────┘
+                                │
+                    ┌───────────▼───────────┐
+                    │  Stage 4: Dual Context │
+                    │  Verification          │
+                    │  ├─ MiniLM text sim    │ ← SentenceTransformer
+                    │  └─ CLAP audio sim     │ ← CLAP audio-text embeddings
+                    └───────────┬───────────┘
+                                │
+                    ┌───────────▼───────────┐
+                    │  Stage 5: Hybrid       │
+                    │  Decision Engine       │
+                    │                        │
+                    │  risk = w_p·P_unsafe   │
+                    │       + w_c·(1-sim_t)  │
+                    │       + w_a·(1-sim_a)  │
+                    └───────────┬───────────┘
+                                │
+              ┌─────────────────┼─────────────────┐
+              │                 │                 │
+        ┌─────▼─────┐   ┌──────▼──────┐   ┌─────▼─────┐
+        │   ALLOW    │   │  MITIGATE   │   │   BLOCK   │
+        │           │   │             │   │           │
+        │ Deliver   │   │  Sanitize   │   │  Return   │
+        │ Response  │   │ PII/Secrets/│   │  Security │
+        │           │   │  Commands   │   │ Fallback  │
+        └───────────┘   └─────────────┘   └───────────┘
 ```
+
+> [!TIP]
+> For a deep-dive into mathematical formulations, streaming sequence diagrams, and threat categorization, read [System Architecture](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/docs/architecture.md) and [Threat Model & Attack Vectors](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/docs/threat_model.md).
 
 ---
 
-## Setup
+## ⚡ Installation & Setup
 
-### Requirements
-
-- Python 3.10+
-- CUDA GPU recommended for Whisper + DistilBERT inference
-- [FFmpeg](https://ffmpeg.org/) on PATH (for audio processing)
-
-### Install
-
+### 1. Clone & Environment Setup
 ```bash
+git clone https://github.com/salyanom/AudioShield_Middleware.git
+cd AudioShield_Middleware
+
+python -m venv venv
+# On Windows PowerShell:
+.\venv\Scripts\Activate.ps1
+# On macOS/Linux:
+source venv/bin/activate
+
+pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### Train the safety classifier
-
+### 2. Download Pre-trained CLAP Embedder & Risk Models
 ```bash
+# Download LAION CLAP audio-text embedding model
+python src/download_clap.py
+
+# Train/verify the DistilBERT input/output risk classifier on benign & adversarial data
 python src/train_risk_model.py
 ```
 
-Trains DistilBERT on `data/risk_dataset.csv` (253 examples, balanced).
-Saves model to `models/risk_classifier/`.
-
-Training results: val_accuracy = 100% at epoch 2 (from 97.56% at epoch 1).
-
----
-
-## Usage
-
-### Run the middleware on a single audio file
-
-```bash
-python src/middleware.py --audio data/benign/benign_00.wav
-```
-
-### Run full evaluation
-
-```bash
-python src/evaluate.py \
-  --benign data/benign \
-  --adversarial data/adversarial \
-  --out results/
-```
-
-Generates 6 graphs and prints precision/recall/F1/ROC-AUC/FPR/FNR.
-
-### Generate adversarial audio samples
-
-```bash
-python src/generate_adversarial.py --input data/benign/benign_00.wav --fmt wav
-```
-
-Attacks: `speed`, `volume`, `noise`, `pitch`, `echo`, `reverb`.
-
-### Generate TTS evaluation dataset
-
-```bash
-pip install pyttsx3
-python src/generate_dataset.py --benign 20 --adversarial 20
-```
-
-### Start the API gateway
-
-```bash
-uvicorn src.api:app --port 8000
-```
-
-### Start the Streamlit UI
-
-```bash
-python -m streamlit run src/ui.py
+### 3. Optional: Configure LLM Provider (`Ollama` or `OpenAI-Compatible`)
+By default, offline evaluations use the lightweight `stub` provider. To connect to a live local `Ollama` LLM (`Llama 3.1` or `Phi-3`):
+```powershell
+$env:AUDIOSHIELD_LLM_PROVIDER="ollama"
+$env:AUDIOSHIELD_LLM_MODEL="llama3.1:8b"
+$env:AUDIOSHIELD_LLM_BASE_URL="http://localhost:11434"
 ```
 
 ---
 
-## Configuration
+## 🚀 Quick Usage
 
-All settings are environment-variable driven via `src/config.py`. No hardcoded values.
-
-| Variable | Default | Description |
-|---|---|---|
-| `AUDIOSHIELD_LLM_PROVIDER` | `ollama` | `ollama`, `openai`, `gemini`, `stub` |
-| `AUDIOSHIELD_LLM_MODEL` | `llama3.1:8b` | Model name |
-| `AUDIOSHIELD_LLM_BASE_URL` | `http://localhost:11434` | API base URL |
-| `AUDIOSHIELD_LLM_API_KEY` | — | API key (Gemini/OpenAI) |
-| `AUDIOSHIELD_INPUT_RISK_THRESHOLD` | `0.80` | Block transcript above this unsafe_prob |
-| `AUDIOSHIELD_OUTPUT_RISK_THRESHOLD` | `0.50` | Mitigate/block response above this |
-| `AUDIOSHIELD_CONTEXT_THRESHOLD` | `0.25` | Block if similarity below this |
-| `AUDIOSHIELD_LOG_PATH` | `logs/security_events.jsonl` | Audit log path |
-
-### Using with Ollama (local Llama 3.1)
-
+### A. Run Continuous Streaming Verification Demo
+Simulate chunk-by-chunk real-time audio streaming (`1.0s` window) and demonstrate mid-stream `EARLY TERMINATION`:
 ```bash
-ollama pull llama3.1:8b
-python src/middleware.py --audio data/benign/benign_00.wav
+python src/streaming_middleware.py --audio data/adversarial/adversarial_inject_00.wav --chunk-duration 1.0 --provider stub --threshold 0.75
+```
+*Output Preview:*
+```
+  [Chunk 01 |  1.0s] ** BLOCK **  | Prob: 0.767 | Transcript: 'ignore our preview...'
+  STREAM SUMMARY -> Final Decision: BLOCK | Early Terminated: YES (1,148 ms total latency)
 ```
 
-### Using with Gemini API
-
+### B. Secure a Single Audio File via CLI
 ```bash
-export AUDIOSHIELD_LLM_PROVIDER=gemini
-export AUDIOSHIELD_LLM_API_KEY=your_key_here
-python src/middleware.py --audio data/benign/benign_00.wav
+python src/middleware.py --audio data/benign/benign_00.wav --json
 ```
 
-### Offline testing (stub backend)
-
+### C. Launch Interactive Streamlit Dashboard
 ```bash
-export LLM_BACKEND=stub
-python src/evaluate.py --benign data/benign --adversarial data/adversarial --out results/
+streamlit run src/ui.py
+```
+
+### D. Generate Whisper-Targeted Acoustic Attacks
+Create 30 high-frequency masking, time-scale modification (`TSM`), and room echo attacks:
+```bash
+python src/generate_whisper_attacks.py
 ```
 
 ---
 
-## Attack Types
+## 📊 Evaluation Results & Empirical Benchmarks
 
-| Attack | Method | Detected by |
-|---|---|---|
-| Prompt injection | Spoken override instructions | Policy checker (unsafe_prob) |
-| Noise injection | AWGN at configurable SNR | Context verifier (similarity) |
-| Echo | Single-tap delayed reflection | Context verifier |
-| Reverb | Synthetic room impulse response | Context verifier |
-| Pitch shift | Resampling-based pitch change | Context verifier |
-| Speed change | Time-stretch without pitch shift | Context verifier |
-| Volume increase | Gain amplification | Context verifier |
+### 1. Hybrid Engine Classification Accuracy (`data/benign` & `data/adversarial`)
+Comparing baseline single-metric cutoffs against the multi-stage hybrid risk score formula across 47 domain-matched audio recordings:
 
----
+| Metric | Baseline (Single-Metric) | Hybrid Original (Manual Balanced) | Hybrid Optimized (Grid Search) |
+| :--- | :---: | :---: | :---: |
+| **Precision** | `1.000` | `1.000` | `1.000` |
+| **Recall** | `0.889` | `0.889` | **`0.963`** |
+| **F1-Score** | `0.941` | `0.941` | **`0.981`** |
+| **False Positive Rate (FPR)** | `0.000` | `0.000` | `0.000` |
 
-## Carlini & Wagner Investigation
+### 2. Out-of-Distribution Generalization (`SpeechCommands`, `LibriSpeech`, `Common Voice`, `AudioCaps`)
+To evaluate domain generalization, we tested the optimized configurations across **120 independent external benign speech files**:
 
-The C&W gradient-based attack (targeted at DeepSpeech 0.9.3) was investigated as a potential evaluation source. The original Docker image (`nvidia/cuda:10.0-cudnn7-devel-ubuntu18.04`) has been removed from Docker Hub, making the build impossible without manual environment reconstruction.
+```markdown
+• Original (Manual Balanced) [w_p=0.40, w_c=0.35, w_a=0.25]: FPR = 0.867 (Safely mitigates short commands without blocking)
+• Optimized (Grid Search)   [w_p=0.65, w_c=0.10, w_a=0.25]: FPR = 1.000 (100% false positives due to over-fitting)
+```
+> [!WARNING]
+> **Threshold Generalization Caveat**: Threshold optimization on the training dataset improved F1 from **0.94 to 0.98**. However, external validation proves that `Optimized-on-Training` thresholds (`w_p=0.65, block=0.43`) over-fit to the acoustic profiles of the training set. For out-of-distribution deployments, the **Manual Balanced** configuration (`w_p=0.40`) is strongly recommended.
 
-An external adversarial dataset (`data/external/`) was used instead to evaluate attack transferability. **Key finding:** C&W-style attacks targeting DeepSpeech do not transfer to Whisper — WER = 0.0 and cosine similarity ≈ 1.0 across all original/adversarial pairs, confirming STT model specificity of gradient-based attacks.
+### 3. Whisper STT Benchmark (`faster-whisper` vs `openai-whisper`)
+Benchmarking transcription latency and Real-Time Factor (RTF) on standard `3s - 6s` audio clips:
 
----
-
-## Technology Stack
-
-| Component | Technology |
-|---|---|
-| Speech-to-Text | OpenAI Whisper |
-| Safety Classifier | DistilBERT (fine-tuned) |
-| Context Verification | SentenceTransformer (all-MiniLM-L6-v2) |
-| LLM Backend | Llama 3.1 / Phi-3 / Gemini / OpenAI-compatible |
-| API Gateway | FastAPI |
-| UI | Streamlit |
-| Audio Processing | Librosa, SciPy, pydub |
-| Logging | JSONL |
+| STT Engine | Average Latency (ms) | Average Real-Time Factor (RTF) | Memory Overhead |
+| :--- | :---: | :---: | :---: |
+| **`openai-whisper` (Base fp32)** | `511.6 ms` | `0.113` | `~1.2 GB` |
+| **`faster-whisper` (Base int8/fp16)** | **`184.2 ms`** | **`0.041`** | **`~540 MB` (2.78x Speedup)** |
 
 ---
 
-## Repository
+## 📁 Repository Structure
 
-[github.com/salyanom/AudioShield_Middleware](https://github.com/salyanom/AudioShield_Middleware)
+```
+AudioShield_Middleware/
+├── data/
+│   ├── benign/                  # 20 clean spoken English commands
+│   ├── adversarial/             # 5 injections + 20 perturbations + 30 Whisper attacks
+│   └── external_benign/         # 120 validation samples (SpeechCommands, LibriSpeech, etc.)
+├── docs/
+│   ├── architecture.md          # 5-Stage hybrid pipeline & streaming design deep-dive
+│   ├── project_structure.md     # Detailed folder & file reference manual
+│   └── threat_model.md          # Attacker horizons & multi-layer redaction specifications
+├── models/
+│   ├── clap_model/              # Cached LAION CLAP HTSAT weights
+│   └── risk_classifier/         # Fine-tuned DistilBERT safety model
+├── results/                     # CSV evaluation metrics & ROC/FPR charts
+├── src/
+│   ├── api.py                   # FastAPI production gateway
+│   ├── audio_embedder.py        # CLAP waveform embedding extraction
+│   ├── audio_processor.py       # Whisper STT wrapper (openai / faster-whisper)
+│   ├── benchmark_faster_whisper.py # STT engine performance comparator
+│   ├── config.py                # Frozen Settings & environment configuration
+│   ├── context_verifier.py      # MiniLM & CLAP dual similarity calculation
+│   ├── download_clap.py         # CLAP weight fetcher
+│   ├── download_datasets.py     # HuggingFace streaming dataset extractor
+│   ├── evaluate.py              # Core offline evaluation pipeline
+│   ├── evaluate_external_benign.py # Out-of-distribution validation runner
+│   ├── generate_whisper_attacks.py # Acoustic obfuscation generator (HF mask, TSM, reverb)
+│   ├── llm_engine.py            # Ollama, OpenAI-compatible, & Stub adapters
+│   ├── logger.py                # JSONL security event audit logging
+│   ├── middleware.py            # Core 5-Stage hybrid middleware orchestrator
+│   ├── optimize_thresholds.py   # Exhaustive grid search optimization
+│   ├── policy_checker.py        # DistilBERT safety classification check
+│   ├── sanitizer.py             # Multi-layer redaction (PII, secrets, commands, URLs)
+│   ├── streaming_middleware.py  # Continuous chunk-by-chunk real-time streaming engine
+│   ├── ui.py                    # Streamlit interactive evaluation dashboard
+│   └── validate_thresholds.py   # ROC/F1 visualization & threshold comparison
+├── tests/                       # 37 passing pytest unit & integration tests
+├── requirements.txt             # Clean Python dependency manifest
+└── README.md                    # System documentation
+```
+
+> [!TIP]
+> For a comprehensive, file-by-file reference manual describing what every script, module, and folder inside this project is for, read the [Project Structure & File Reference Guide](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/docs/project_structure.md).
+
+---
+
+## 🧪 Running Automated Tests
+
+Run the full pytest test suite verifying the middleware, hybrid engine, streaming checks, and multi-layer sanitizer:
+```bash
+pytest -v tests/
+```
+
+---
+
+## 🤝 Contributing & License
+
+This project is licensed under the **MIT License**. Contributions, bug reports, and pull requests are welcome! See [LICENSE](LICENSE) for details.

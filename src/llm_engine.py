@@ -89,8 +89,19 @@ class OpenAICompatibleProvider(HTTPProvider):
         return data["choices"][0]["message"]["content"].strip()
 
 
+@dataclass
+class StubProvider:
+    name: str = "stub"
+    model: str = "stub-echo"
+
+    def generate(self, transcript: str) -> str:
+        return f"[Stub response for: {transcript[:50]}]"
+
+
 def build_provider(cfg: Settings = settings) -> LLMProvider:
     provider = cfg.llm_provider.lower()
+    if provider == "stub":
+        return StubProvider()
     common = {
         "name": provider,
         "model": cfg.llm_model,
