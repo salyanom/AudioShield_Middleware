@@ -85,7 +85,7 @@ def get_audio_embedding(audio_path: str) -> np.ndarray:
     audio = _load_audio(audio_path)
 
     inputs = _processor(
-        audios=audio,
+        audio=audio,
         return_tensors="pt",
         sampling_rate=CONFIG["sample_rate"],
     )
