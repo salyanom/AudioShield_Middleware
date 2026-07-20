@@ -46,8 +46,8 @@ def _load():
     from transformers import ClapModel, ClapProcessor
 
     _device    = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    _processor = ClapProcessor.from_pretrained(CONFIG["model_name"])
-    _model     = ClapModel.from_pretrained(CONFIG["model_name"]).to(_device)
+    _processor = ClapProcessor.from_pretrained(CONFIG["model_name"], local_files_only=True)
+    _model     = ClapModel.from_pretrained(CONFIG["model_name"], local_files_only=True).to(_device)
     _model.eval()
     print(f"[audio_embedder] CLAP loaded on {_device}")
 
@@ -85,7 +85,7 @@ def get_audio_embedding(audio_path: str) -> np.ndarray:
     audio = _load_audio(audio_path)
 
     inputs = _processor(
-        audio=audio,
+        audios=audio,
         return_tensors="pt",
         sampling_rate=CONFIG["sample_rate"],
     )
