@@ -1,9 +1,8 @@
 import os
 import glob
 import pandas as pd
-from pathlib import Path
 from middleware import process_audio
-from config import settings
+from analyze_eval_results import generate_analysis
 
 def run_evaluation():
     results = []

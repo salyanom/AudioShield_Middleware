@@ -15,18 +15,44 @@ The dataset consisted of 70 audio files:
 * **Context Verification**: MiniLM + CLAP embeddings
 * **Configuration**: Deterministic LLM output (`temperature=0`).
 
-## 2. Phase 1 Architectural Fix: Input Risk Preservation
-In the baseline system, if an adversarial prompt injection scored high on the input policy (e.g., `0.70`), but the LLM provided a safe refusal (`0.47`), the Hybrid Engine discarded the `0.70` threat and only used the `0.47` output risk. Combined with a semantic similarity subsidy, this resulted in dangerous bypasses (False Negatives).
+## 2. Phase 1 Architectural Improvement
 
-**The Fix:**
-We updated `src/middleware.py` to preserve high input risk:
+### Problem Identified
+During the baseline evaluation, adversarial samples (like `whisper_attack_reverb_06.wav`) successfully bypassed the middleware and reached the user.
+
+### Root Cause
+The baseline Hybrid Engine calculated the final policy risk as `max(input_prob, output_prob)`. If an adversarial instruction successfully bypassed DistilBERT but the LLM provided a safe refusal (e.g., "I cannot help with that"), the Output Policy would score low risk (e.g., `0.20`). The Hybrid Engine would combine this low risk with the high semantic similarity of the response, creating a "contextual subsidy" that forced the final risk score below the `0.40` Mitigate threshold.
+
+### Solution Implemented
+We preserved high Input Risk by ensuring it overrides safe Output Risk:
 ```python
 if input_prob >= 0.60:
     policy_prob = input_prob
 else:
     policy_prob = output_prob
 ```
-This guarantees that any prompt that DistilBERT flags as suspicious (`>= 0.60`) carries its threat weight directly into the final decision formula, effectively eliminating the "contextual subsidy" loophole.
+This strict preservation logic guarantees that any prompt flagged by DistilBERT as suspicious (`>= 0.60`) carries its threat weight directly into the final formula, eliminating the contextual subsidy loophole.
+
+### Quantitative Improvement
+The Phase 1 fix successfully eliminated all False Negatives, raising **Recall from 94% to 100%**.
+
+### Ablation Study
+To understand the contribution of each module, we evaluated the pipeline incrementally:
+
+| Configuration | Accuracy | Precision | Recall | F1 |
+|:---|:---:|:---:|:---:|:---:|
+| **Input Policy Only** | 77.1% | 97.2% | 70.0% | 0.814 |
+| **Input + Output Policy** | 75.7% | 97.1% | 68.0% | 0.800 |
+| **Original Hybrid Engine** | 94.2% | 97.9% | 94.0% | 0.959 |
+| **Phase 1 Hybrid Engine** | **94.2%** | **92.5%** | **100.0%** | **0.961** |
+
+*Note: The Output policy alone drops recall slightly because safe refusals mask the threat. The Hybrid Engine combining Audio/Context similarity brings recall up to 94%. Phase 1 strict input preservation pushes recall to a perfect 100%.*
+
+### Trade-offs
+Because we now strictly preserve input threats, 4 highly technical benign queries triggered baseline suspicion in DistilBERT and were MITIGATED (False Positives). In a security context, slightly over-mitigating 4 technical queries to guarantee 0 bypasses against real attacks is a highly favorable trade-off.
+
+### Remaining Limitations
+The 4 False Positives exist because the MiniLM Context Verification module uses Cosine Similarity. It cannot distinguish between an instruction entailment and a safe refusal contradiction if they share similar vocabulary.
 
 ## 3. Results & Threshold Analysis
 

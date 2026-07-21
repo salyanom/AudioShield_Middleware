@@ -10,13 +10,12 @@ Usage:
 """
 
 import os
-import sys
 import numpy as np
 import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-from sklearn.metrics import roc_curve, auc
+import matplotlib.pyplot as plt  # noqa: E402
+from sklearn.metrics import roc_curve, auc  # noqa: E402
 
 # ── Configurations to compare ────────────────────────────────────────────────
 

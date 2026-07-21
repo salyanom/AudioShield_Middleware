@@ -10,12 +10,6 @@ def generate_analysis():
     os.makedirs("results/plots", exist_ok=True)
     
     # Task 2: Analyze evaluation results
-    total_benign = len(df[df['label'] == 'benign'])
-    total_adv = len(df[df['label'] == 'adversarial'])
-    
-    benign_decisions = df[df['label'] == 'benign']['decision_0.65'].value_counts() if 'decision_0.65' in df.columns else pd.Series()
-    adv_decisions = df[df['label'] == 'adversarial']['decision_0.65'].value_counts() if 'decision_0.65' in df.columns else pd.Series()
-
     # If decision_0.65 is not in raw CSV, we must compute it.
     def get_decision(row, thresh=0.65):
         if pd.isna(row['risk_score']): return "BLOCK"

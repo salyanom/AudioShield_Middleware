@@ -20,7 +20,6 @@ Usage:
 import argparse
 import time
 from dataclasses import dataclass, field
-from pathlib import Path
 import soundfile as sf
 import numpy as np
 
@@ -140,7 +139,6 @@ class StreamingAudioShield:
             is_violation, details = policy_check(
                 partial_transcript, self.cfg.input_risk_threshold
             )
-            policy_latency = (time.perf_counter() - start_policy) * 1000.0
             unsafe_prob = float(details.get("unsafe_prob", 0.0))
             chunk_latency = (time.perf_counter() - chunk_start) * 1000.0
 

@@ -6,7 +6,6 @@ models/risk_classifier/.  Everything configurable via CONFIG below —
 no hardcoded values in the training logic.
 """
 
-import os
 import json
 from pathlib import Path
 

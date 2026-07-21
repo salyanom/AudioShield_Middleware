@@ -11,8 +11,8 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from config import settings
-from middleware import process_audio, process_transcript
+from config import settings  # noqa: E402
+from middleware import process_audio, process_transcript  # noqa: E402
 
 
 st.set_page_config(page_title="AudioShield", page_icon="🛡️", layout="wide")
