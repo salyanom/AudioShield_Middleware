@@ -68,6 +68,11 @@ class OllamaProvider(HTTPProvider):
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": transcript},
                 ],
+                "options": {
+                    "temperature": 0.0,
+                    "top_p": 1.0,
+                    "seed": 42
+                }
             },
         )
         return data["message"]["content"].strip()

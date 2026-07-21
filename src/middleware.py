@@ -188,8 +188,13 @@ def process_transcript(
         audio_sim = float(audio_sim)
 
     # Stage 5: Hybrid decision engine
+    if input_prob >= 0.60:
+        policy_prob = input_prob
+    else:
+        policy_prob = output_prob if output_prob is not None else input_prob
+
     risk_score = _compute_risk_score(
-        unsafe_prob    = output_prob,
+        unsafe_prob    = policy_prob,
         transcript_sim = transcript_sim,
         audio_sim      = audio_sim,
         cfg            = cfg,

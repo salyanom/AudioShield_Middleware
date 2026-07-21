@@ -34,7 +34,7 @@ class Settings:
     weight_audio:    float = _float_env("AUDIOSHIELD_WEIGHT_AUDIO",   0.25)
 
     # Hybrid risk score thresholds
-    block_threshold:    float = _float_env("AUDIOSHIELD_BLOCK_THRESHOLD",    0.60)
+    block_threshold:    float = _float_env("AUDIOSHIELD_BLOCK_THRESHOLD",    0.65)
     mitigate_threshold: float = _float_env("AUDIOSHIELD_MITIGATE_THRESHOLD", 0.40)
 
     # CLAP audio embeddings
