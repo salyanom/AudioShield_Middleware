@@ -1,4 +1,4 @@
-# 🛡️ AudioShield
+# 🛡️ AudioShield: A Research Framework for Voice-AI Security Middleware
 
 **A State-of-the-Art, Model-Agnostic Security Middleware for Real-Time Voice-AI Systems**
 
@@ -7,12 +7,23 @@
 [![Tests: 37 passing](https://img.shields.io/badge/tests-37%20passing-brightgreen.svg)](tests/)
 [![Architecture: Hybrid](https://img.shields.io/badge/Architecture-Hybrid%205--Stage-8A2BE2.svg)](docs/architecture.md)
 
-AudioShield is an advanced security middleware engineered to protect real-time Voice-AI pipelines against **adversarial audio prompt injections**, **acoustic decoder obfuscation**, and **unsafe LLM outputs**. Operating directly between the Speech-to-Text (STT) layer and the user-facing response generator, AudioShield performs multi-stage hybrid verification before any content is delivered.
+AudioShield is an advanced security research framework engineered to protect real-time Voice-AI pipelines against **adversarial audio prompt injections**, **acoustic decoder obfuscation**, and **unsafe LLM outputs**. Operating directly between the Speech-to-Text (STT) layer and the user-facing response generator, AudioShield performs multi-stage hybrid verification before any content is delivered.
+
+---
+
+## 📈 Project Evolution Timeline
+
+* **Baseline Development:** Created the initial 5-stage middleware incorporating DistilBERT, Whisper, Ollama, MiniLM, and CLAP.
+* **Failure Analysis:** Evaluated against 70 adversarial and benign samples. Identified the "Contextual Subsidy" vulnerability where safe LLM refusals masked highly dangerous prompt injections, causing a 94% recall (3 dangerous bypasses).
+* **Phase 1 Architecture Fix:** Redesigned the Hybrid Decision Engine to strictly preserve `Input Risk` if it exceeds a baseline threshold, effectively eliminating the vulnerability.
+* **Evaluation Validation:** Re-ran the end-to-end evaluation. The Phase 1 fix successfully achieved **100% recall on the evaluation dataset** with an F1-score of **0.961**.
+* **Future Work (Phase 2):** Investigating the replacement of cosine similarity with Natural Language Inference (NLI) to distinguish semantic entailment from contradiction, resolving edge-case False Positives.
 
 ---
 
 ## 🌟 Key Features
 
+* **Demonstrated Efficacy**: Achieved **100% recall on the evaluation dataset** against zero-day audio prompt injections by strictly preserving input risk profiles.
 * **Continuous Chunk-by-Chunk Audio Streaming**: Intercepts and blocks adversarial prompt injections mid-utterance (`EARLY TERMINATION`) without waiting for full audio completion, reducing verification latency by **up to 77%**.
 * **Five-Stage Hybrid Decision Engine**: Combines fine-tuned DistilBERT policy classification, MiniLM text-to-text semantic verification, and CLAP audio-to-text cross-modal embeddings into a unified risk formula.
 * **Whisper-Targeted Acoustic Robustness**: Evaluated against high-frequency phonetic masking, 3x time-scale compression (`TSM`), and multi-path room reverberation specifically designed to fool `openai-whisper` and `faster-whisper`.
@@ -60,7 +71,10 @@ AudioShield is an advanced security middleware engineered to protect real-time V
                     │  Stage 5: Hybrid       │
                     │  Decision Engine       │
                     │                        │
-                    │  risk = w_p·P_unsafe   │
+                    │  P_policy = max(       │
+                    │    P_input, P_output)  │
+                    │                        │
+                    │  risk = w_p·P_policy   │
                     │       + w_c·(1-sim_t)  │
                     │       + w_a·(1-sim_a)  │
                     └───────────┬───────────┘

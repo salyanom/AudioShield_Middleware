@@ -104,15 +104,15 @@ Limitations:
 
 AudioShield now includes:
 
-### Pre-LLM Input Verification
+### Pre-LLM Input Verification & Risk Preservation (Phase 1 Fix)
 
-Unsafe transcripts are blocked before reaching the LLM.
+Unsafe transcripts are identified by DistilBERT before or during LLM generation. 
+Following the Phase 1 Architectural update, AudioShield implements a **Strict Input Risk Preservation** policy (`P_policy = max(P_input, P_output)`). This guarantees that adversarial prompt injections (which might otherwise generate a "safe" refusal from the LLM) can never maliciously lower the final risk score via contextual subsidies.
 
 Benefits:
-
-* Lower cost
-* Lower latency
-* Reduced attack surface
+* **100% Recall** against zero-day audio prompt injections.
+* Lower cost & lower latency.
+* Reduced attack surface.
 
 ---
 

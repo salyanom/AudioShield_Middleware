@@ -31,7 +31,8 @@ sequenceDiagram
         S3->>S4: Transcript T + Response R + Audio Waveform A
         S4->>S4: Compute MiniLM Text Sim (sim_t) & CLAP Audio Sim (sim_a)
         S4->>S5: Metrics (P_output, sim_t, sim_a)
-        S5->>S5: Compute Risk Score = w_p·P_output + w_c·(1-sim_t) + w_a·(1-sim_a)
+        S5->>S5: P_policy = max(P_input, P_output)
+        S5->>S5: Compute Risk = w_p·P_policy + w_c·(1-sim_t) + w_a·(1-sim_a)
         
         alt Risk Score >= Block Threshold (0.60)
             S5-->>User: 🚫 BLOCK: Return Security Mitigation Fallback
@@ -46,14 +47,16 @@ sequenceDiagram
 
 ---
 
-## 2. Mathematical Formulation of the Hybrid Decision Engine
+## 2. Mathematical Formulation of the Hybrid Decision Engine (Phase 1 Update)
 
-Instead of relying on rigid, single-metric cutoffs that fail under signal distortion or out-of-distribution audio, AudioShield calculates a unified **Risk Score (`R`)** bounded in `[0.0, 1.0]`:
+Baseline architectures suffered from a **"Contextual Subsidy" vulnerability**, where a highly adversarial input prompt could be masked by a safe LLM refusal, lowering the overall risk score and allowing bypasses. Phase 1 fixes this by strictly preserving input risk profiles. AudioShield calculates a unified **Risk Score (`R`)** bounded in `[0.0, 1.0]`:
 
-$$\mathcal{R} = w_p \cdot P_{\text{unsafe}} + w_c \cdot (1 - \text{sim}_t) + w_a \cdot (1 - \text{sim}_a)$$
+$$P_{\text{policy}} = \begin{cases} P_{\text{input}} & \text{if } P_{\text{input}} \ge 0.60 \\ P_{\text{output}} & \text{otherwise} \end{cases}$$
+
+$$\mathcal{R} = w_p \cdot P_{\text{policy}} + w_c \cdot (1 - \text{sim}_t) + w_a \cdot (1 - \text{sim}_a)$$
 
 Where:
-* $P_{\text{unsafe}} \in [0, 1]$ is the unsafe probability predicted by the fine-tuned DistilBERT safety classifier on the generated response.
+* $P_{\text{policy}} \in [0, 1]$ is the unified safety probability, strictly preserving input threats detected by DistilBERT.
 * $\text{sim}_t \in [-1, 1]$ is the cosine similarity between the input transcript $T$ and response $R$ (`all-MiniLM-L6-v2`).
 * $\text{sim}_a \in [-1, 1]$ is the cross-modal acoustic-semantic similarity between the audio waveform $A$ and response $R$ (`laion/clap-htsat-unfused`).
 * $w_p, w_c, w_a$ are normalized importance weights such that $w_p + w_c + w_a = 1.0$.

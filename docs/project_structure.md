@@ -30,9 +30,13 @@ AudioShield_Middleware/
 | :--- | :--- |
 | **[`README.md`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/README.md)** | **Primary Project Documentation**: Entry point featuring badges, ASCII system diagrams, quick-start installation commands, usage examples, and empirical evaluation results. |
 | **[`RESULTS.md`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/RESULTS.md)** | **Exhaustive Evaluation Report**: Documents baseline single-metric vs hybrid multi-stage accuracy (`98.1% F1`), grid search threshold optimization, out-of-distribution False Positive Rates (`Original vs Grid`), latency breakdowns (`511ms vs 184ms`), and ROC curves. |
+| **[`info.md`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/info.md)** | **Project Status Report**: Internal document tracking architectural capabilities, evaluation status, and progress metrics. |
+| **[`prog.md`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/prog.md)** | **Development Roadmap**: Tracks completed components, pending objectives, and future research directions (like NLI integration). |
+| **[`PROJECT_STRUCTURE.md`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/PROJECT_STRUCTURE.md)** | **Brief Directory Structure**: A high-level overview of the repository hierarchy complementing this detailed guide. |
 | **[`requirements.txt`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/requirements.txt)** | **Python Dependency Manifest**: Lists all required third-party packages including `torch`, `transformers`, `openai-whisper`, `faster-whisper`, `sentence-transformers`, `streamlit`, `fastapi`, `soundfile`, `scipy`, and `pydantic-settings`. |
 | **[`LICENSE`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/LICENSE)** | **Open-Source License**: Standard MIT License governing the repository and code usage. |
 | **[`.gitignore`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/.gitignore)** | **Git Exclusion Rules**: Prevents tracking of heavy model weights (`models/`), virtual environments (`venv/`), `__pycache__`, large dataset downloads (`data/external_benign/`), and temporary scratch logs. |
+| **`eval.log`, `diagnose.py`, `debug_639.py`** | **Scratch / Diagnostic Files**: Temporary output logs and diagnostic scripts generated during runtime or debugging. |
 
 ---
 
@@ -65,7 +69,10 @@ The `src/` directory contains 26 Python scripts that power the 5-Stage Hybrid Pi
 ### 4. Evaluation, Optimization, & Benchmarking Scripts
 | File Name | Description & Purpose |
 | :--- | :--- |
-| **[`src/evaluate.py`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/src/evaluate.py)** | **Core Batch Evaluation Runner**: Runs AudioShield across all files in `data/benign/` and `data/adversarial/`. Logs precision, recall, F1-score, latency metrics, and similarity distributions to `results/evaluation_results.csv`. |
+| **[`src/evaluate_thresholds_systematic.py`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/src/evaluate_thresholds_systematic.py)** | **Phase 1 Systematic Evaluator**: Replaces legacy evaluation scripts. Runs the complete 5-stage pipeline across all dataset samples and computes detection metrics across varying thresholds. |
+| **[`src/analyze_eval_results.py`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/src/analyze_eval_results.py)** | **Metric Analyzer**: Consumes the raw CSV output from the systematic evaluator to compute final precision, recall, accuracy, F1, and generate publication-ready plots. |
+| **[`src/recompute_scores.py`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/src/recompute_scores.py)** | **Fast-Track Score Re-calculator**: A temporary mathematical utility used during Phase 1 to quickly recalculate risk scores off cached outputs without requiring full LLM re-inference. |
+| **[`src/evaluate.py`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/src/evaluate.py)** | **Core Batch Evaluation Runner (Legacy)**: Runs AudioShield across all files in `data/benign/` and `data/adversarial/`. Logs precision, recall, F1-score, latency metrics, and similarity distributions to `results/evaluation_results.csv`. |
 | **[`src/evaluate_deterministic.py`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/src/evaluate_deterministic.py)** | **Deterministic Baseline Evaluator**: Evaluates the pipeline using fixed, pre-defined response outputs (`StubProvider`) to ensure reproducible baseline metric calculations without requiring live LLM network calls. |
 | **[`src/evaluate_external_benign.py`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/src/evaluate_external_benign.py)** | **Out-of-Distribution Threshold Validator**: Evaluates `Original (Manual Balanced)` vs `Optimized (Grid Search)` thresholds across 120 external speech files (`SpeechCommands`, `LibriSpeech`, etc.) to empirically prove generalizability and over-fitting behavior. |
 | **[`src/evaluate_external_adversarial.py`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/src/evaluate_external_adversarial.py)** | **External Adversarial Evaluator**: Tests AudioShield against simulated or external adversarial prompt injections and audio jailbreak datasets. |
@@ -120,6 +127,8 @@ data/
 | :--- | :--- |
 | **[`docs/architecture.md`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/docs/architecture.md)** | **Engineering Architecture Deep-Dive**: Explains the 5-Stage Hybrid verification flow with sequence diagrams (`Mermaid`), mathematical formulations (`Risk Score`), continuous streaming timing charts, and STT benchmark data. |
 | **[`docs/threat_model.md`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/docs/threat_model.md)** | **Threat Model & Redaction Specifications**: Details attacker horizons, capabilities (`Black-box audio vs Acoustic obfuscation`), attack family breakdowns, and the 6 deterministic redaction layers in `sanitizer.py`. |
+| **[`docs/paper_contribution.md`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/docs/paper_contribution.md)** | **IEEE Paper Outline**: Foundation document detailing the research problem, the identified 'Contextual Subsidy' vulnerability, the proposed Phase 1 mathematical improvement, evaluation validation, and future NLI extensions. |
+| **[`docs/AUDIT_REPORT.md`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/docs/AUDIT_REPORT.md)** | **Security Audit**: Outlines the security audit framework or findings regarding the system's resilience to various attacks. |
 | **[`docs/project_structure.md`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/docs/project_structure.md)** | **Directory & File Reference Guide**: This exact reference manual. |
 
 ---
@@ -137,11 +146,29 @@ data/
 
 | File Name / Folder | Description & Purpose |
 | :--- | :--- |
-| **[`results/evaluation_results.csv`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/results/evaluation_results.csv)** | Master evaluation metrics table containing `transcript`, `sim_t`, `sim_a`, `risk_score`, `unsafe_prob`, `decision`, and `latency_ms` across the 47 baseline audio recordings. |
-| **`results/external_benign/`** | Contains `external_benign_original_manual.csv` (`0.867 FPR`) and `external_benign_optimized_grid.csv` (`1.000 FPR`), proving how threshold optimization over-fits to training data vs out-of-distribution generalizability. |
-| **[`results/whisper_benchmark_comparison.csv`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/results/whisper_benchmark_comparison.csv)** | Raw benchmark table recording file duration, latency (`ms`), and Real-Time Factor (`RTF`) across `openai-whisper` and `faster-whisper`. |
+| **`results/evaluation_results*.csv`** | Master baseline evaluation metrics tables containing `transcript`, `sim_t`, `sim_a`, `risk_score`, `unsafe_prob`, `decision`, and `latency_ms` across audio recordings. |
+| **[`results/threshold_eval_raw.csv`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/results/threshold_eval_raw.csv)** | **Phase 1 Evaluation Data**: Fresh evaluation CSV generated during the Phase 1 end-to-end validation. |
+| **[`results/EVALUATION_REPORT.md`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/results/EVALUATION_REPORT.md)** | **Phase 1 Assessment**: Detailed breakdown of the Phase 1 validation containing ablation studies and component analysis. |
 | **[`results/security_audit.log`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/results/security_audit.log)** | JSON Lines (`.jsonl`) audit log recording every security decision processed by the middleware or streaming engine. |
-| **`results/*.png` Charts** | Generated visualization charts: `roc_curve.png`, `similarity_by_attack.png`, `latency_boxplot.png`, `unsafe_prob_distribution.png`, `decision_distribution.png`, `threshold_comparison_roc.png`, and `threshold_comparison_f1.png`. |
+| **`results/*.png` (Baseline Charts)** | Original baseline visualization charts evaluating the Llama 3.1 pipeline: `roc_curve.png`, `confusion_matrix.png`, `similarity_by_attack.png`, `latency_boxplot.png`, `unsafe_prob_distribution.png`, `decision_distribution.png`, `threshold_comparison_roc.png`, and `threshold_comparison_f1.png`. |
+| **[`results/plots/confusion_matrix_new.png`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/results/plots/confusion_matrix_new.png)** | Phase 1 Confusion Matrix showcasing the 100% recall metric (0 False Negatives). |
+| **[`results/plots/decision_dist_new.png`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/results/plots/decision_dist_new.png)** | Phase 1 final breakdown of ALLOW, MITIGATE, and BLOCK decisions under the strict input preservation architecture. |
+| **[`results/plots/latency_chart.png`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/results/plots/latency_chart.png)** | Phase 1 Latency boxplot detailing execution speeds. |
+| **[`results/plots/risk_score_hist.png`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/results/plots/risk_score_hist.png)** | Phase 1 histogram of unified risk scores illustrating the separation between benign and adversarial queries. |
+| **[`results/plots/threshold_comparison.png`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/results/plots/threshold_comparison.png)** | Phase 1 visual proof of metric improvements after the architectural fix. |
+| **[`results/deterministic/confusion_matrix.png`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/results/deterministic/confusion_matrix.png)** | Deterministic Stub evaluation: Confusion matrix. |
+| **[`results/deterministic/decision_distribution.png`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/results/deterministic/decision_distribution.png)** | Deterministic Stub evaluation: Decision breakdowns. |
+| **[`results/deterministic/latency_boxplot.png`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/results/deterministic/latency_boxplot.png)** | Deterministic Stub evaluation: Latency chart (no LLM network overhead). |
+| **[`results/deterministic/roc_curve.png`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/results/deterministic/roc_curve.png)** | Deterministic Stub evaluation: ROC Curve. |
+| **[`results/deterministic/similarity_by_attack.png`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/results/deterministic/similarity_by_attack.png)** | Deterministic Stub evaluation: Contextual similarity distributions. |
+| **[`results/deterministic/unsafe_prob_distribution.png`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/results/deterministic/unsafe_prob_distribution.png)** | Deterministic Stub evaluation: DistilBERT unsafe probability distribution. |
+| **[`results/external/evaluation_results.csv`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/results/external/evaluation_results.csv)** | Raw evaluation metrics from testing against external audio jailbreak datasets. |
+| **[`results/external/evaluation_results_deterministic.csv`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/results/external/evaluation_results_deterministic.csv)** | Same as above but evaluated using the deterministic Stub generation. |
+| **`results/external/*.png`** | (Includes `confusion_matrix.png`, `roc_curve.png`, `latency_boxplot.png`, `decision_distribution.png`, `unsafe_prob_distribution.png`, `similarity_by_attack.png`) Identical visualization chart types as the baseline, but specifically visualizing performance against external, out-of-distribution adversarial attacks. |
+| **`results/external/deterministic/*.png`** | Equivalent external adversarial visualization charts generated strictly using the deterministic Stub generation. |
+| **[`results/external_benign/external_benign_fpr_comparison.png`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/results/external_benign/external_benign_fpr_comparison.png)** | Out-of-Distribution threshold comparison chart showing how aggressive thresholds cause 100% FPR on external benign speech. |
+| **[`results/external_benign/external_benign_optimized_grid.csv`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/results/external_benign/external_benign_optimized_grid.csv)** | Tabular metrics of AudioShield evaluating external speech using grid-search optimized weights. |
+| **[`results/external_benign/external_benign_original_manual.csv`](file:///c:/Users/Om%20Jagdish%20Salyan/Downloads/CCNCSP1/results/external_benign/external_benign_original_manual.csv)** | Tabular metrics of AudioShield evaluating external speech using manually balanced domain-generalized weights. |
 
 ---
 
