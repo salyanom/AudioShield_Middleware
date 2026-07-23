@@ -89,7 +89,7 @@ def main():
     print(f"\nGenerating Whisper-targeted acoustic attacks from {len(injections)} base injections...\n")
     count = 0
 
-    for idx, (fname, audio, sr) in enumerate(injections[:10]):
+    for idx, (fname, audio, sr) in enumerate(injections):
         stem = os.path.splitext(fname)[0]
 
         # 1. High-frequency phonetic masking

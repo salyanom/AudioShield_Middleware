@@ -92,6 +92,17 @@ ADVERSARIAL_SCRIPTS = [
 ]
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _load_prompts(filepath: str, default_list: list) -> list:
+    if os.path.exists(filepath):
+        with open(filepath, "r", encoding="utf-8") as f:
+            lines = [l.strip() for l in f.readlines() if l.strip()]
+            if lines:
+                return lines
+    return default_list
+
+BENIGN_SCRIPTS = _load_prompts("data/prompts/benign_prompts.txt", BENIGN_SCRIPTS)
+ADVERSARIAL_SCRIPTS = _load_prompts("data/prompts/adversarial_prompts.txt", ADVERSARIAL_SCRIPTS)
+
 
 def _tts_available():
     try:

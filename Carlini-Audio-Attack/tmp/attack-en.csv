@@ -1,0 +1,2 @@
+filename,length,attack_runtime,source_dB,noise_loudness,high_pertubation_bound,low_pertubation_bound,first_hit,best_hit
+/host/sample-000000.wav,51072,23273.187000513077,89.62971687316895,-54.62031364440918,56.2950439453125,0.001220703125,20.0,230.0

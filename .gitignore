@@ -1,4 +1,4 @@
-# Python
+# ── Python ────────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *.pyo
@@ -10,66 +10,65 @@ build/
 .eggs/
 *.egg
 
-# Virtual environments
+# ── Virtual environments ─────────────────────────────────────────────────────
 venv/
 env/
 .venv/
 .env/
 
-# Jupyter
+# ── Jupyter ───────────────────────────────────────────────────────────────────
 .ipynb_checkpoints/
 
-# OS
+# ── OS ────────────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# IDE
+# ── IDE ───────────────────────────────────────────────────────────────────────
 .vscode/settings.json
 .idea/
 *.swp
 *.swo
 
-# Logs (keep structure, ignore content)
+# ── Logs ──────────────────────────────────────────────────────────────────────
 logs/*.jsonl
+logs/*.log
 *.log
 
-# Model weights (too large for git - download via train_risk_model.py)
+# ── Test caches ───────────────────────────────────────────────────────────────
+.pytest_cache/
+
+# ── Model weights (too large for Git — retrain via train_risk_model.py) ──────
 models/risk_classifier/model.safetensors
 models/risk_classifier/vocab.txt
 models/risk_classifier/tokenizer.json
 models/risk_classifier/tokenizer_config.json
 models/risk_classifier/special_tokens_map.json
 models/risk_classifier/config.json
-
-# Keep training metadata
 !models/risk_classifier/training_meta.json
 
-# Large audio files - external adversarial dataset
+# ── Large intermediate files ─────────────────────────────────────────────────
+results/threshold_optimization.csv
+
+# ── External validation datasets (download separately) ───────────────────────
 data/external/zhenghuatan/*.wav
+data/external_benign/
 
-# Temp/debug scripts (keep in repo for reproducibility, but note they are diagnostic)
-# debug_639.py
-# diagnose.py
+# ── Scratch / temporary scripts ──────────────────────────────────────────────
+scratch/
 
-# Archives
+# ── Archives ──────────────────────────────────────────────────────────────────
 *.zip
 *.tar.gz
 *.rar
 
-# Streamlit
+# ── Streamlit ─────────────────────────────────────────────────────────────────
 .streamlit/
 
-# Environment files
+# ── Environment files ─────────────────────────────────────────────────────────
 .env
 .env.local
 
-# Agent/AI tool directories
+# ── Agent/AI tool directories ─────────────────────────────────────────────────
 .agents/
 .gemini/
-
-# Large generated files
-results/threshold_optimization.csv
-
-# Downloaded external datasets (too large for git)
-data/external_benign/
